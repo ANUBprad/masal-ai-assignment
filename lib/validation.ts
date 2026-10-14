@@ -26,10 +26,7 @@ export const chatRequestSchema = z.object({
     priorityScore: z.number().min(0).max(100).optional(),
     priority: z.enum(["Hot", "Warm", "Cold"]).optional(),
   }),
-  history: z.array(z.object({
-    role: z.enum(["user", "assistant"]),
-    content: z.string().min(1).max(3000),
-  })).max(12),
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(3000) })).max(12),
   question: z.string().trim().min(1).max(1000),
 });
 
@@ -42,7 +39,7 @@ export const callBriefRequestSchema = z.object({
 });
 
 export function readJsonObject(text: string): unknown {
-  const cleaned = text.trim().replace(/^`{3}(?:json)?\\s*/i, "").replace(/\\s*`{3}$/, "");
+  const cleaned = text.trim().replace(/^`{3}(?:json)?\s*/i, "").replace(/\s*`{3}$/, "");
   try {
     return JSON.parse(cleaned);
   } catch {
