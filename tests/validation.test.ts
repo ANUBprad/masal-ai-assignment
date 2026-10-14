@@ -1,26 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { leadInputSchema, readJsonObject } from "../lib/validation.ts";
+import { readJsonObject } from "../lib/validation.ts";
+import { validateLead } from "../lib/validation.ts";
 
-const valid = {
-  name: "Aditi",
-  location: "Bengaluru",
-  propertyRequirement: "2 BHK apartment",
-  budget: "INR 90 lakh",
-  timeline: "Within 1-3 months",
-  message: "Please send information about apartments.",
-};
-
-test("lead validation accepts complete intake", () => {
-  assert.equal(leadInputSchema.safeParse(valid).success, true);
+test("validates a complete lead", () => {
+  const lead = validateLead({
+    name: "Priya Sharma", location: "Whitefield", propertyRequirement: "3 BHK",
+    budget: "₹1.4 Cr", timeline: "Within 30 days", message: "Would like to visit this weekend."
+  });
+  assert.equal(lead.name, "Priya Sharma");
 });
 
-test("lead validation rejects missing name and oversized message", () => {
-  assert.equal(leadInputSchema.safeParse({ ...valid, name: " " }).success, false);
-  assert.equal(leadInputSchema.safeParse({ ...valid, message: "x".repeat(6001) }).success, false);
+test("rejects an invalid timeline", () => {
+  assert.throws(() => validateLead({
+    name: "Priya Sharma", location: "Whitefield", propertyRequirement: "3 BHK",
+    budget: "₹1.4 Cr", timeline: "tomorrow", message: "Would like to visit."
+  }));
 });
 
-test("AI JSON parser handles fenced JSON and surrounding text", () => {
-  assert.deepEqual(readJsonObject(' ```json\n{"intent":"ready"}\n``` '), { intent: "ready" });
-  assert.deepEqual(readJsonObject('Result: {"intent":"ready"} thanks'), { intent: "ready" });
+test("reads only JSON objects", async () => {
+  const result = await readJsonObject(new Request("http://localhost", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ hello: "world" })
+  }));
+  assert.equal(result.hello, "world");
+  await assert.rejects(() => readJsonObject(new Request("http://localhost", { method: "POST", body: "nope" })));
 });

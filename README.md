@@ -1,52 +1,33 @@
-# Masal Lead Intelligence
+# Masal AI — Real-estate Lead Intelligence
 
-A practical AI sales copilot for real-estate teams. Capture property inquiries, prioritize leads, understand customer intent, and prepare the next useful sales action.
+A Next.js application for real-estate salespeople to understand inbound enquiries, prioritize leads, prepare for calls, and draft context-aware follow-ups.
 
 ## Features
 
-- Capture and save multiple leads with location, property requirement, budget, timeline, and customer message.
-- Generate summaries, intent, requirements, objections, next actions, and suggested replies with a real Gemini API call.
-- Rank leads with a transparent rule-based priority score; this is a workflow heuristic, not a validated prediction model.
-- Ask lead-specific follow-up questions in the contextual copilot.
-- Create a Call Prep Brief with an opening, discovery questions, likely objection, and closing question.
-- Store leads in browser localStorage with search, filters, and status tracking.
+- **Lead intake:** capture name, location, property requirement, budget, buying timeline, and customer message.
+- **AI lead analysis:** summary, intent, requirements, concerns, recommended next action, and a suggested reply.
+- **Prioritization:** transparent rule-based score with Hot / Warm / Cold grouping.
+- **Sales copilot:** ask follow-up questions grounded in the selected lead's context.
+- **Call brief:** generate a call objective, talking points, discovery questions, watch-outs, and an opening line.
+- **Browser persistence:** leads are stored locally in this browser. Demo leads are included on first run.
+- **Bring your own key:** reviewer supplies a Gemini API key through the setup screen.
 
-## Stack
+## Requirements
 
-Next.js App Router, React, TypeScript, Tailwind CSS, Google Gemini API via `@google/genai`, Zod, and browser localStorage.
-
-## Technical documentation
-
-- [Architecture](docs/architecture.md) — current components, request flows, trust boundaries, and deployment topology.
-- [System design](docs/system-design.md) — domain model, API contracts, scoring approach, persistence, security, trade-offs, and future evolution.
-
-## Architecture
-
-```text
-Browser dashboard
-  ├── Lead intake, filters, lead detail
-  ├── localStorage (per-browser persistence)
-  └── Server API routes
-        ├── /api/analyze    -> Gemini -> structured lead assessment
-        ├── /api/chat       -> Gemini + selected lead context
-        └── /api/call-brief -> Gemini + selected lead context
-```
-
-Model calls are server-side. API input and generated structured output are validated. The Gemini key is never bundled into browser code.
+- Node.js 20.10+ (Node.js 22 LTS recommended)
+- npm
+- A Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 ## Run locally
 
-Requirements: Node.js 22+ and npm.
-
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-Set `GEMINI_API_KEY` in `.env.local`. Create a free-tier key at [Google AI Studio](https://aistudio.google.com/apikey). Optionally set `GEMINI_MODEL`; default: `gemini-3.8-flash`. Never commit `.env.local`.
+Open `http://localhost:3000`, enter your Gemini API key, select a model, and test the connection.
 
-Run checks:
+Run quality checks:
 
 ```bash
 npm test
@@ -55,26 +36,57 @@ npm run lint
 npm run build
 ```
 
-## Deploy
+## Architecture
 
-Import this public repository into Vercel and configure `GEMINI_API_KEY` and optionally `GEMINI_MODEL` in project environment variables. Redeploy after changing environment variables. Vercel Hobby is free for personal projects; review current provider terms before business use.
+- `app/page.tsx` — lead workspace, lead intake, prioritization, AI results, chat, and call brief UI.
+- `components/SetupScreen.tsx` — first-launch API key/model setup.
+- `app/api/*` — same-origin server endpoints for connection test, lead analysis, chat, and call brief.
+- `lib/ai.ts` — model allowlist, credential validation, safe provider errors.
+- `lib/gemini.ts` — request-scoped Gemini REST calls and response validation.
+- `lib/scoring.ts` — deterministic lead scoring and priority mapping.
+- `lib/validation.ts` — server-side input validation.
+- `types/lead.ts` — shared TypeScript contracts.
 
-## Free API note
+### AI request flow
 
-A paid key is not inherently required when your account has access to a Gemini API model on the free tier. Available models and quotas may vary. The app does not fake analysis when the key is missing; sample leads keep the interface explorable and the server shows a clear configuration error.
+1. The user enters a Gemini API key and chooses a model in the browser.
+2. The key remains in React state only; it is not written to localStorage, cookies, or server environment variables.
+3. The browser sends the key and model in headers to same-origin Next.js API routes.
+4. The server validates the headers and model allowlist, then makes a request-scoped HTTPS call to Gemini.
+5. The server returns the model result or a safe error message. Provider errors and credentials are not logged or returned verbatim.
 
-## Limitations
+## Security and privacy notes
 
-- localStorage is per browser; it does not sync across salespeople or devices.
-- The priority score is a transparent heuristic, not a trained conversion predictor.
-- AI output can be wrong or incomplete; verify it before contacting customers.
-- The app does not message customers automatically.
-- Model availability and quotas depend on Google's current free-tier limits.
+- Do not add API keys to `.env`, source control, screenshots, or bug reports.
+- The key is held in page memory and disappears when the page is refreshed or disconnected.
+- Leads and chat history are saved to the browser's localStorage. Do not enter sensitive personal data unless you understand that this is a local demo.
+- The API routes validate request bodies and constrain model IDs. The Gemini key is sent to Google's API by the server.
+- This demo does not implement user authentication, a shared database, server-side rate limiting, or multi-user tenancy. Deploy behind appropriate controls before handling real customer data.
+- The rule-based lead score is a transparent heuristic, not a prediction of conversion.
+
+## Deployment
+
+Deploy to Vercel or another Node.js-capable host:
+
+1. Push the project to a public GitHub repository.
+2. Import it into Vercel and deploy with the default Next.js settings.
+3. No server-side Gemini secret is required; reviewers bring their own key in the setup screen.
+4. Test the deployed URL in a private browser session and verify all links are accessible.
+
+## Known limitations
+
+- Browser-local lead data is not synchronized across devices.
+- Demo leads are illustrative and should be removed before a production rollout.
+- The Gemini model allowlist is intentionally small; update `SUPPORTED_MODELS` after checking current Google model availability.
+- Live Gemini calls require network access and a valid key/quota. Unit tests do not call Google.
+- There is no CRM integration, authentication, or audit log.
 
 ## AI usage disclosure
 
-AI assistance was used for product planning, implementation support, debugging, and documentation. Runtime AI features use the Gemini API for lead analysis, contextual chat, and call-prep generation. Update this statement to reflect the tools and tasks actually used before submission.
+Complete this section truthfully before submitting. Example structure:
 
-## Demo video
+- ChatGPT: requirements interpretation, architecture and implementation assistance, debugging, and documentation.
+- CLI coding assistant: code generation, test execution, and repository workflow assistance.
+- Human review: verify every feature and be prepared to explain implementation choices in the interview.
 
-Add the public three-minute walkthrough link here after recording it.
+Edit this disclosure to reflect the tools you actually used.

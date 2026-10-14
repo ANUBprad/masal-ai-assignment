@@ -1,65 +1,63 @@
-import type { LeadInput, LeadAnalysis, LeadPriority } from "@/types/lead";
+import type { LeadInput, Priority } from "../types/lead";
 
-export type ScoreResult = {
+export interface LeadScore {
   score: number;
-  priority: LeadPriority;
+  priority: Priority;
   reasons: string[];
-};
-
-function timelinePoints(timeline: string): number {
-  const value = timeline.toLowerCase();
-  if (/immediate|this week|asap|within 2 weeks|1-2 week|urgent/.test(value)) return 30;
-  if (/this month|within a month|2-4 week|30 day/.test(value)) return 24;
-  if (/1-3 month|3 month|this quarter/.test(value)) return 17;
-  if (/3-6 month|six month/.test(value)) return 10;
-  if (/explor|just looking|not sure|no rush|6+ month/.test(value)) return 5;
-  return 12;
 }
 
-export function scoreLead(input: LeadInput, analysis: LeadAnalysis | null): ScoreResult {
-  let score = 0;
+export function scoreLead(input: LeadInput): LeadScore {
+  let score = 35;
   const reasons: string[] = [];
-  const timing = timelinePoints(input.timeline);
-  score += timing;
-  if (timing >= 24) reasons.push("Near-term buying timeline");
-  else if (timing <= 5) reasons.push("Long or exploratory timeline");
+  const timeline = input.timeline.toLowerCase();
 
-  if (input.budget.trim() && !/not decided|unknown|tbd|not sure/i.test(input.budget)) {
-    score += 15;
-    reasons.push("Budget information provided");
+  if (timeline.includes("immediately")) {
+    score += 35;
+    reasons.push("Immediate buying timeline");
+  } else if (timeline.includes("30 days")) {
+    score += 28;
+    reasons.push("Near-term buying timeline");
+  } else if (timeline.includes("1–3 months")) {
+    score += 18;
+    reasons.push("Defined buying window");
+  } else if (timeline.includes("3–6 months")) {
+    score += 8;
+    reasons.push("Medium-term buying window");
   } else {
-    score += 5;
-  }
-
-  if (input.propertyRequirement.trim().length >= 20) {
-    score += 15;
-    reasons.push("Specific property requirements");
-  } else {
-    score += 7;
+    score -= 8;
+    reasons.push("Exploratory timeline");
   }
 
   const message = input.message.toLowerCase();
-  if (/visit|site visit|book|booking|ready to buy|ready to purchase|finali[sz]e|down payment|loan approved/.test(message)) {
-    score += 25;
-    reasons.push("Message signals concrete purchase intent");
-  } else if (/price|availability|available|loan|finance|amenit|possession|floor plan|schedule/.test(message)) {
-    score += 17;
-    reasons.push("Asks actionable purchase questions");
-  } else {
-    score += 8;
+  const strongSignals = [
+    ["visit", 12, "Asked about a property visit"],
+    ["loan", 8, "Mentioned financing or loan approval"],
+    ["ready to move", 8, "Ready-to-move preference"],
+    ["book", 8, "Mentioned booking"],
+    ["site", 6, "Asked about a site visit"],
+    ["available", 5, "Asked about availability"]
+  ] as const;
+  for (const [term, points, reason] of strongSignals) {
+    if (message.includes(term)) {
+      score += points;
+      reasons.push(reason);
+    }
   }
 
-  if (analysis?.intentStrength === "Strong") {
-    score += 15;
-    reasons.push("AI assessment indicates strong intent");
-  } else if (analysis?.intentStrength === "Moderate") {
-    score += 10;
-  } else if (analysis?.intentStrength === "Weak") {
-    score += 3;
+  if (input.budget.trim()) {
+    score += 5;
+    reasons.push("Budget provided");
+  }
+  if (input.propertyRequirement.trim()) {
+    score += 5;
+    reasons.push("Property requirement specified");
   }
 
-  score = Math.min(100, score);
-  const priority: LeadPriority = score >= 70 ? "Hot" : score >= 45 ? "Warm" : "Cold";
-  if (reasons.length === 0) reasons.push("Limited details so far; ask a clarifying question");
+  score = Math.max(0, Math.min(100, score));
+  const priority: Priority = score >= 70 ? "Hot" : score >= 48 ? "Warm" : "Cold";
   return { score, priority, reasons };
+}
+
+export function priorityForScore(score: number): Priority {
+  return score >= 70 ? "Hot" : score >= 48 ? "Warm" : "Cold";
 }

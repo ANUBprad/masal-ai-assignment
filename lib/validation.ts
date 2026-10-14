@@ -1,51 +1,31 @@
-import { z } from "zod";
+import { BUYING_TIMELINES, type LeadInput } from "../types/lead.ts";
 
-export const leadInputSchema = z.object({
-  name: z.string().trim().min(1, "Enter the customer's name.").max(120),
-  location: z.string().trim().min(1, "Enter a location.").max(160),
-  propertyRequirement: z.string().trim().min(1, "Describe the property requirement.").max(500),
-  budget: z.string().trim().min(1, "Enter the customer's budget.").max(120),
-  timeline: z.string().trim().min(1, "Choose the buying timeline.").max(120),
-  message: z.string().trim().min(8, "Add a little more detail from the customer.").max(6000),
-});
-
-export const leadAnalysisSchema = z.object({
-  summary: z.string().min(1).max(1200),
-  intent: z.string().min(1).max(800),
-  keyRequirements: z.array(z.string().min(1).max(300)).max(8),
-  objections: z.array(z.string().min(1).max(300)).max(8),
-  nextAction: z.string().min(1).max(800),
-  suggestedReply: z.string().min(1).max(1600),
-  intentStrength: z.enum(["Strong", "Moderate", "Weak"]),
-  confidenceNote: z.string().min(1).max(500),
-});
-
-export const chatRequestSchema = z.object({
-  lead: leadInputSchema.extend({
-    analysis: leadAnalysisSchema.nullable().optional(),
-    priorityScore: z.number().min(0).max(100).optional(),
-    priority: z.enum(["Hot", "Warm", "Cold"]).optional(),
-  }),
-  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(3000) })).max(12),
-  question: z.string().trim().min(1).max(1000),
-});
-
-export const callBriefRequestSchema = z.object({
-  lead: leadInputSchema.extend({
-    analysis: leadAnalysisSchema.nullable().optional(),
-    priorityScore: z.number().min(0).max(100).optional(),
-    priority: z.enum(["Hot", "Warm", "Cold"]).optional(),
-  }),
-});
-
-export function readJsonObject(text: string): unknown {
-  const cleaned = text.trim().replace(/^`{3}(?:json)?\s*/i, "").replace(/\s*`{3}$/, "");
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start < 0 || end <= start) throw new Error("The AI returned an unreadable response. Please try again.");
-    return JSON.parse(cleaned.slice(start, end + 1));
+export function validateLead(value: unknown): LeadInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Provide lead details as an object.");
   }
+  const record = value as Record<string, unknown>;
+  const fields = ["name", "location", "propertyRequirement", "budget", "timeline", "message"] as const;
+  for (const field of fields) {
+    if (typeof record[field] !== "string") throw new Error(`Enter a valid ${field.replace(/[A-Z]/g, (m) => ` ${m.toLowerCase()}`)}.`);
+  }
+  const result = Object.fromEntries(fields.map((field) => [field, (record[field] as string).trim()])) as unknown as LeadInput;
+  if (result.name.length < 2 || result.name.length > 120) throw new Error("Name must be between 2 and 120 characters.");
+  if (!result.location || result.location.length > 160) throw new Error("Enter a valid location.");
+  if (!result.propertyRequirement || result.propertyRequirement.length > 300) throw new Error("Enter a valid property requirement.");
+  if (!result.budget || result.budget.length > 120) throw new Error("Enter a valid budget.");
+  if (!(BUYING_TIMELINES as readonly string[]).includes(result.timeline)) throw new Error("Choose a valid buying timeline.");
+  if (result.message.length < 5 || result.message.length > 10000) throw new Error("Customer message must be between 5 and 10,000 characters.");
+  return result;
+}
+
+export async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
+  let value: unknown;
+  try {
+    value = await request.json();
+  } catch {
+    throw new Error("Request body must be valid JSON.");
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Request body must be a JSON object.");
+  return value as Record<string, unknown>;
 }

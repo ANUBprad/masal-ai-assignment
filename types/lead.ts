@@ -1,40 +1,59 @@
-export const leadStatuses = ["New", "Contacted", "Qualified", "Closed"] as const;
-export type LeadStatus = (typeof leadStatuses)[number];
+export const BUYING_TIMELINES = [
+  "Immediately",
+  "Within 30 days",
+  "1–3 months",
+  "3–6 months",
+  "Just exploring / no rush"
+] as const;
 
-export const priorities = ["Hot", "Warm", "Cold"] as const;
-export type LeadPriority = (typeof priorities)[number];
+export type BuyingTimeline = (typeof BUYING_TIMELINES)[number];
+export type Priority = "Hot" | "Warm" | "Cold";
+export type LeadStatus = "New" | "Contacted" | "Visit scheduled" | "Qualified" | "Closed";
 
-export type LeadInput = {
+export interface LeadInput {
   name: string;
   location: string;
   propertyRequirement: string;
   budget: string;
-  timeline: string;
+  timeline: BuyingTimeline;
   message: string;
-};
+}
 
-export type LeadAnalysis = {
+export interface LeadAnalysis {
   summary: string;
   intent: string;
-  keyRequirements: string[];
-  objections: string[];
+  requirements: string[];
+  concerns: string[];
   nextAction: string;
   suggestedReply: string;
   intentStrength: "Strong" | "Moderate" | "Weak";
   confidenceNote: string;
-};
+}
 
-export type Lead = LeadInput & {
+export interface Lead extends LeadInput {
   id: string;
   createdAt: string;
-  status: LeadStatus;
-  analysis: LeadAnalysis | null;
-  priorityScore: number;
-  priority: LeadPriority;
+  updatedAt: string;
+  score: number;
+  priority: Priority;
   scoreReasons: string[];
-};
+  status: LeadStatus;
+  analysis: LeadAnalysis;
+  chat: ChatMessage[];
+  callBrief?: CallBrief;
+}
 
-export type ChatMessage = {
+export interface ChatMessage {
+  id: string;
   role: "user" | "assistant";
   content: string;
-};
+  createdAt: string;
+}
+
+export interface CallBrief {
+  objective: string;
+  talkingPoints: string[];
+  questions: string[];
+  watchOutFor: string[];
+  openingLine: string;
+}

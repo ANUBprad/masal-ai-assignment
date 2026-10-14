@@ -1,38 +1,46 @@
-import { GoogleGenAI } from "@google/genai";
+export const SUPPORTED_MODELS = [
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", description: "Recommended · balanced speed and quality" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", description: "Lower-latency, lightweight option" }
+] as const;
 
-let client: GoogleGenAI | undefined;
+export const DEFAULT_MODEL = SUPPORTED_MODELS[0].id;
+export const API_KEY_HEADER = "x-gemini-api-key";
+export const MODEL_HEADER = "x-gemini-model";
+const MAX_KEY_LENGTH = 512;
 
-export function getAiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error("Gemini isn't configured yet. Add a free-tier API key as GEMINI_API_KEY in your environment settings.");
-  }
-  client ??= new GoogleGenAI({ apiKey });
-  return client;
+export function isSupportedModel(model: string): boolean {
+  return SUPPORTED_MODELS.some((item) => item.id === model);
 }
 
-export function getModelName(): string {
-  return process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
+export type AiCredentials = { apiKey: string; model: string };
+
+export function parseAiCredentials(headers: Headers): AiCredentials {
+  const apiKey = (headers.get(API_KEY_HEADER) ?? "").trim();
+  const model = (headers.get(MODEL_HEADER) ?? "").trim();
+
+  if (!apiKey) throw new Error("Add your Gemini API key in Settings to continue.");
+  if (apiKey.length > MAX_KEY_LENGTH || /[\r\n]/.test(apiKey)) {
+    throw new Error("The API key format looks invalid. Check it and try again.");
+  }
+  if (!isSupportedModel(model)) {
+    throw new Error("Choose a supported Gemini model in Settings.");
+  }
+  return { apiKey, model };
 }
 
-export async function generateText(prompt: string): Promise<string> {
-  const result = await getAiClient().models.generateContent({
-    model: getModelName(),
-    contents: prompt,
-  });
-  const text = result.text?.trim();
-  if (!text) throw new Error("The AI returned an empty response. Please try again.");
-  return text;
-}
-
-export function userFacingAiError(error: unknown): { message: string; status: number } {
-  const raw = error instanceof Error ? error.message : "Unexpected AI provider error.";
-  if (/isn't configured|GEMINI_API_KEY/i.test(raw)) return { message: raw, status: 503 };
-  if (/429|RESOURCE_EXHAUSTED|quota|rate.?limit/i.test(raw)) {
-    return { message: "The free AI quota is currently limited. Wait and try again, or check your Google AI Studio limits.", status: 429 };
+export function safeAiError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/API_KEY_INVALID|invalid api key|unauthenticated|API key not valid/i.test(message)) {
+    return "Gemini rejected this API key. Check the key and try again.";
   }
-  if (/API key|unauthorized|permission denied|401|403/i.test(raw)) {
-    return { message: "Gemini rejected the API key. Check that GEMINI_API_KEY is valid and enabled for the Gemini API.", status: 401 };
+  if (/quota|resource_exhausted|rate.?limit|429/i.test(message)) {
+    return "Gemini's usage limit was reached. Check your API quota or try again later.";
   }
-  return { message: "The AI request failed. Please retry in a moment. If it keeps failing, check the server logs and selected model.", status: 502 };
+  if (/permission|forbidden|403/i.test(message)) {
+    return "This key does not have access to the requested Gemini model.";
+  }
+  if (/timed out|timeout|network|fetch failed/i.test(message)) {
+    return "Gemini could not be reached. Check your connection and retry.";
+  }
+  return "Gemini could not complete this request. Please retry.";
 }
