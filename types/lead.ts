@@ -38,9 +38,10 @@ export interface Lead extends LeadInput {
   priority: Priority;
   scoreReasons: string[];
   status: LeadStatus;
-  analysis: LeadAnalysis;
+  analysis?: LeadAnalysis;
   chat: ChatMessage[];
   callBrief?: CallBrief;
+  demo?: boolean;
 }
 
 export interface ChatMessage {

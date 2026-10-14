@@ -99,4 +99,14 @@ h1,h2,h3,h4 { font-family:"Manrope","DM Sans",sans-serif; }
 button,input,textarea,select { font:inherit; }
 button { cursor:pointer; }
 button:disabled { cursor:not-allowed; opacity:.55; }
+:where(button, a, [role="button"]):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 ::selection { background:#d7f36a; color:#14251d; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
