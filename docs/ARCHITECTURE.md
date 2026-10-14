@@ -133,7 +133,7 @@ Defined in `types/lead.ts`.
 | Layer | What is held | Durability |
 | --- | --- | --- |
 | Browser React state | The working `leads` array, selection, filters, form fields. | Lost on page reload. |
-| Browser `localStorage` (`masal-ai-leads-v1`) | The full `leads` array (leads, analyses, chat, call briefs). | Per-browser, per-device. Survives reloads; cleared with site data; never synced. On first run, three illustrative demo leads are seeded and then persisted. |
+| Browser `localStorage` (`masal-ai-leads-v1`) | The full `leads` array (leads, analyses, chat, call briefs). | Per-browser, per-device. Survives reloads; cleared with site data; never synced. The workspace starts empty — no sample leads are ever seeded — and only leads the salesperson creates are persisted (`lib/leads.ts`). Legacy seeded records marked `demo: true` are dropped on load as a targeted migration; unidentifiable records are kept. |
 | Server memory | The rate limiter's `hits` map and a `served` counter; the provider layer's key-rotation counter and per-key cooldown map. | Per serverless instance; reset on cold start; not shared across instances. |
 | Durable database | **None.** | Not implemented. |
 
@@ -308,6 +308,7 @@ Tests use Node's built-in runner with `--experimental-strip-types` (`npm test`),
 | `tests/http.test.ts` | `guard`: `429` when the IP is over the limit, `503` when no provider key is configured, and that it returns the provider plan. |
 | `tests/providers.test.ts` | Provider routing and failover with a stubbed `fetch`: Groq is primary by default, `AI_PROVIDER=gemini` flips it, model allow-list/fallback, blank keys ignored, multi-key rotation, rate-limited key cooldown and skip, `429` → secondary provider, `401/403` bounded (no endless retry), `5xx` bounded, all-fail yields a safe error (never fabricated content), and transient retry happens once per option. |
 | `tests/chat.test.ts` | That a lead's analysis and score reach the chat prompt (captures the outbound payload with a stubbed `fetch`), and that chat works without an analysis. |
+| `tests/leads.test.ts` | `lib/leads.ts` workspace lifecycle: fresh/invalid storage yields zero leads, seeded demo records (`demo: true`) are dropped while ambiguous records are kept, newly created leads round-trip through storage, `pipelineStats` reports zeros for an empty workspace, and `resolveSelectedLead` returns `undefined` when there is no lead. |
 
 Unit tests never call a real provider API. `npm run typecheck` (`tsc --noEmit`), `npm run lint` (ESLint), and `npm run build` (Next.js) are run alongside tests in CI. There are no route-level integration tests or end-to-end tests; endpoint behaviour is exercised indirectly through the shared modules.
 

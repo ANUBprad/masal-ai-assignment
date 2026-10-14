@@ -8,8 +8,8 @@ import {
 import type { ChatMessage, Lead, LeadInput, LeadScoreDetail, LeadStatus, Priority } from "@/types/lead";
 import { BUYING_TIMELINES } from "@/types/lead";
 import { PRIORITIES, PRIORITY_BAR, PRIORITY_NOTE, PRIORITY_STYLES, scoreLead, type LeadScore } from "@/lib/scoring";
+import { LEADS_STORAGE_KEY, parseStoredLeads, pipelineStats, resolveSelectedLead } from "@/lib/leads";
 
-const STORAGE_KEY = "masal-ai-leads-v1";
 const THEME_KEY = "masal-ai-theme";
 
 type Notice = { text: string; tone: "success" | "error" };
@@ -40,74 +40,13 @@ function validateForm(input: LeadInput): Partial<Record<keyof LeadInput, string>
   if (input.message.trim().length < 5) errors.message = "Add at least 5 characters of the enquiry.";
   return errors;
 }
-const DEMO_SEED: LeadSeed[] = [
-  {
-    id: "demo-1", name: "Priya Sharma", location: "Whitefield, Bengaluru",
-    propertyRequirement: "3 BHK apartment, gated community", budget: "₹1.2–1.5 Cr",
-    timeline: "Within 30 days", message: "Hi, we're looking for a 3 BHK near Whitefield because our office is moving there next month. Budget is around 1.4 crore. We have loan pre-approval and would like to visit a few ready-to-move options this weekend.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 38).toISOString(), updatedAt: new Date().toISOString(),
-    status: "Visit scheduled", demo: true, chat: [], analysis: {
-      summary: "A motivated buyer seeking a ready-to-move 3 BHK near Whitefield ahead of an office relocation next month.",
-      intent: "High intent: defined budget, financing pre-approval, and a specific visit request.",
-      requirements: ["3 BHK in a gated community", "Near Whitefield", "Ready-to-move options", "Budget around ₹1.4 Cr"],
-      concerns: ["Availability for the requested weekend is not confirmed", "Commute and exact preferred micro-location need clarification"],
-      nextAction: "Shortlist 2–3 verified ready-to-move options and confirm a weekend visit slot.",
-      suggestedReply: "Hi Priya, thanks for sharing those details. I’ll shortlist ready-to-move 3 BHK options around Whitefield within your budget. Could you share your preferred move-in date and any must-have amenities? I’ll then suggest suitable options and coordinate a visit.",
-      intentStrength: "Strong", confidenceNote: "Based on the stated budget, financing pre-approval, near-term move, and explicit visit request.",
-      knownFacts: ["Near-term move (office relocating next month)", "Budget around ₹1.4 Cr", "Loan pre-approval stated", "Wants ready-to-move 3 BHK near Whitefield", "Requested a weekend visit"],
-      inferences: ["Likely a decision-ready buyer given the near-term move and financing signal", "Gated-community preference is implied by the requirement"],
-      unknowns: ["Exact possession date", "Must-have amenities", "Preferred micro-location within Whitefield"],
-      dealRisks: ["Weekend visit slot and ready-to-move inventory are not confirmed", "No verified availability for the requested configuration"]
-    }
-  },
-  {
-    id: "demo-2", name: "Rahul Mehta", location: "Sarjapur Road, Bengaluru",
-    propertyRequirement: "2 BHK apartment with amenities", budget: "₹75–90 L",
-    timeline: "61–90 days", message: "I'm comparing a few projects in Sarjapur. Can you send floor plans and maintenance details? Still deciding whether to buy now or later.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), updatedAt: new Date().toISOString(),
-    status: "Contacted", demo: true, chat: [], analysis: {
-      summary: "A comparison-stage buyer researching 2 BHK options and recurring costs around Sarjapur Road.",
-      intent: "Moderate intent: actively comparing projects but timing is not final.",
-      requirements: ["2 BHK", "Sarjapur Road area", "Floor plans", "Maintenance cost clarity"],
-      concerns: ["Purchase timing is undecided", "Total cost of ownership needs clarification"],
-      nextAction: "Send verified floor plans and a transparent cost breakdown; schedule a short discovery call.",
-      suggestedReply: "Hi Rahul, happy to help. I can share the available floor plans along with the maintenance and other recurring costs so you can compare options clearly. Is there a particular possession timeline or amenity that's most important to you?",
-      intentStrength: "Moderate", confidenceNote: "The lead is engaged in comparison but has not committed to a purchase date.",
-      knownFacts: ["Comparing a few projects around Sarjapur Road", "Budget ₹75–90 L", "Wants 2 BHK with amenities", "Asked about floor plans and maintenance"],
-      inferences: ["Likely price-sensitive and comparing total cost of ownership", "May be waiting to see options before deciding timing"],
-      unknowns: ["Whether they will buy now or later", "Possession timeline", "Which amenities matter most"],
-      dealRisks: ["Purchase timing is undecided", "Total cost of ownership has not been framed"]
-    }
-  },
-  {
-    id: "demo-3", name: "Ananya Rao", location: "North Bengaluru",
-    propertyRequirement: "Villa or plot, flexible", budget: "Not decided",
-    timeline: "Just exploring / no rush", message: "Just starting to look around. Curious about the difference between buying a plot and a villa. No urgency at the moment.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(), updatedAt: new Date().toISOString(),
-    status: "New", demo: true, chat: [], analysis: {
-      summary: "An early-stage prospect exploring villa versus plot ownership in North Bengaluru with no fixed timeline.",
-      intent: "Low immediate intent; education and light nurturing are more appropriate than hard selling.",
-      requirements: ["Understand villa versus plot trade-offs", "Explore North Bengaluru"],
-      concerns: ["Budget and timeline are unknown", "Property type remains undecided"],
-      nextAction: "Share a neutral comparison guide and ask permission to follow up in a few weeks.",
-      suggestedReply: "Hi Ananya, happy to help you explore both options. A villa offers a more ready-to-use home, while a plot can offer more flexibility but needs additional planning. I can share a simple comparison of costs, upkeep, and timelines to help you decide at your own pace.",
-      intentStrength: "Weak", confidenceNote: "The customer explicitly described the enquiry as exploratory and low urgency.",
-      knownFacts: ["Early-stage research", "Interested in villa versus plot", "Location preference: North Bengaluru"],
-      inferences: ["Education-first nurturing is more appropriate than a sales push"],
-      unknowns: ["Budget", "Timeline", "Whether they will buy at all"],
-      dealRisks: ["No budget or timeline to qualify", "Property type remains undecided"]
-    }
-  }
-];
-const DEMO_LEADS: Lead[] = DEMO_SEED.map(withScore);
-
 const STATUSES: LeadStatus[] = ["New", "Contacted", "Visit scheduled", "Qualified", "Closed"];
 
 function makeId() { return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 
 export default function HomePage() {
-  const [leads, setLeads] = useState<Lead[]>(DEMO_LEADS);
-  const [selectedId, setSelectedId] = useState("demo-1");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [search, setSearch] = useState("");
@@ -121,18 +60,16 @@ export default function HomePage() {
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof LeadInput, string>>>({});
 
+  // Load persisted leads once on mount. Legacy seeded demo records are dropped
+  // by `parseStoredLeads`; a missing/empty store leaves the workspace empty.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as Lead[];
-        if (Array.isArray(saved) && saved.length) {
-          const normalized = saved.map(withScore);
-          setLeads(normalized);
-          setSelectedId(normalized[0].id);
-        }
+      const saved = parseStoredLeads(localStorage.getItem(LEADS_STORAGE_KEY)).map(withScore);
+      if (saved.length) {
+        setLeads(saved);
+        setSelectedId(saved[0].id);
       }
-    } catch { /* Ignore invalid local browser data and use demo leads. */ }
+    } catch { /* Ignore unreadable local browser data; the workspace stays empty. */ }
     setHydrated(true);
   }, []);
 
@@ -148,17 +85,16 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    if (hydrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
+    if (hydrated) localStorage.setItem(LEADS_STORAGE_KEY, JSON.stringify(leads));
   }, [leads, hydrated]);
 
-  const selected = leads.find((lead) => lead.id === selectedId) ?? leads[0];
+  const selected = resolveSelectedLead(leads, selectedId);
   const filteredLeads = useMemo(() => leads.filter((lead) => {
     const query = search.toLowerCase();
     return (!query || `${lead.name} ${lead.location} ${lead.propertyRequirement}`.toLowerCase().includes(query))
       && (priorityFilter === "All" || lead.priority === priorityFilter);
   }).sort((a, b) => b.score - a.score), [leads, search, priorityFilter]);
-  const actNowCount = leads.filter((lead) => lead.priority === "Act Now").length;
-  const avgScore = leads.length ? Math.round(leads.reduce((sum, lead) => sum + lead.score, 0) / leads.length) : 0;
+  const stats = pipelineStats(leads);
 
   function updateLead(id: string, patch: Partial<Lead>) {
     setLeads((current) => current.map((lead) => lead.id === id ? { ...lead, ...patch, updatedAt: new Date().toISOString() } : lead));
@@ -243,7 +179,7 @@ export default function HomePage() {
     if (!window.confirm("Remove this lead from your saved list?")) return;
     const remaining = leads.filter((lead) => lead.id !== id);
     setLeads(remaining);
-    if (selectedId === id && remaining[0]) setSelectedId(remaining[0].id);
+    if (selectedId === id) setSelectedId(remaining[0]?.id ?? null);
   }
 
   return (
@@ -271,11 +207,11 @@ export default function HomePage() {
             <p className="mt-1 text-sm text-[var(--text-muted)]">Prioritized real-estate leads with AI analysis and follow-up.</p>
           </div>
           <dl className="flex items-center gap-5">
-            <Stat label="Leads" value={leads.length}/>
+            <Stat label="Leads" value={stats.total}/>
             <div className="h-9 w-px bg-[var(--border-soft)]" aria-hidden="true"/>
-            <Stat label="Act now" value={actNowCount}/>
+            <Stat label="Act now" value={stats.actNow}/>
             <div className="h-9 w-px bg-[var(--border-soft)]" aria-hidden="true"/>
-            <Stat label="Avg score" value={avgScore}/>
+            <Stat label="Avg score" value={stats.avgScore}/>
           </dl>
         </div>
 
@@ -289,7 +225,7 @@ export default function HomePage() {
               <div className="mt-3 inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-inset)] p-0.5" role="group" aria-label="Filter by priority">
                 {(["All", ...PRIORITIES] as const).map((item) => {
                   const active = priorityFilter === item;
-                  return <button key={item} onClick={() => setPriorityFilter(item)} aria-pressed={active} className={`inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-xs font-semibold transition ${active ? "border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-sm" : "border border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"}`}>{item}{item !== "All" && <span className={`tabular-nums ${active ? "text-[var(--text-faint)]" : "text-[var(--text-faint)]"}`}>{leads.filter((lead) => lead.priority === item).length}</span>}</button>;
+                  return <button key={item} onClick={() => setPriorityFilter(item)} aria-pressed={active} className={`inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-xs font-semibold transition ${active ? "border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-sm" : "border border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"}`}>{item}{item !== "All" && <span className={`tabular-nums ${active ? "text-[var(--text-faint)]" : "text-[var(--text-faint)]"}`}>{stats.byPriority[item]}</span>}</button>;
                 })}
               </div>
             </div>
@@ -307,11 +243,10 @@ export default function HomePage() {
                     <span className="truncate">{lead.location.split(",")[0]}</span>
                     <span aria-hidden="true" className="text-[var(--text-faint)]">·</span>
                     <span className="truncate">{lead.timeline}</span>
-                    {lead.demo && <span className="ml-auto shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sample</span>}
                   </div>
                 </button>;
               })}
-              {!leads.length && <div className="flex flex-col items-center gap-3 px-6 py-12 text-center"><Inbox size={22} className="text-[var(--text-faint)]"/><div><p className="text-sm font-semibold">No leads yet</p><p className="mt-0.5 text-xs text-[var(--text-muted)]">Add your first lead to start the pipeline.</p></div><button onClick={() => setShowForm(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-input)] px-3 py-1.5 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]"><Plus size={14}/> Add lead</button></div>}
+              {!leads.length && <div className="flex flex-col items-center gap-3 px-6 py-12 text-center"><Inbox size={22} className="text-[var(--text-faint)]"/><div><p className="text-sm font-semibold">No leads yet</p><p className="mt-0.5 text-xs text-[var(--text-muted)]">Your first lead will show up here.</p></div><button onClick={() => setShowForm(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-input)] px-3 py-1.5 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]"><Plus size={14}/> Add your first lead</button></div>}
               {leads.length > 0 && !filteredLeads.length && <p className="px-6 py-12 text-center text-sm text-[var(--text-muted)]">No leads match your search.</p>}
             </div>
           </section>
@@ -323,7 +258,6 @@ export default function HomePage() {
                   <div className="flex flex-wrap items-center gap-2.5">
                     <h2 className="text-xl font-bold tracking-tight">{selected.name}</h2>
                     <PriorityBadge priority={selected.priority}/>
-                    {selected.demo && <span className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sample</span>}
                   </div>
                   <p className="mt-1 text-sm text-[var(--text-muted)]">{selected.location}</p>
                 </div>
@@ -449,7 +383,7 @@ export default function HomePage() {
                 <p className="mt-2 px-1 text-[11px] text-[var(--text-faint)]">Enter to send · Shift+Enter for a new line</p>
               </form>
             </section>
-          </div> : <div className="panel grid place-items-center border-dashed p-12 text-center"><div className="flex flex-col items-center gap-3"><Inbox size={24} className="text-[var(--text-faint)]"/><div><p className="text-sm font-semibold">No lead selected</p><p className="mt-0.5 text-sm text-[var(--text-muted)]">Add a lead to start your pipeline.</p></div></div></div>}
+          </div> : <section className="panel grid place-items-center border-dashed p-10 text-center sm:p-16"><div className="flex max-w-md flex-col items-center gap-4"><span className="grid h-14 w-14 place-items-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--brand-text)]"><Inbox size={24}/></span><div><h2 className="text-lg font-bold tracking-tight">Your workspace is ready</h2><p className="mt-1.5 text-sm leading-6 text-[var(--text-muted)]">Leads created by the salesperson will appear here, each with a sales priority score, AI analysis, call brief, and a copilot grounded in the enquiry.</p></div><button onClick={() => setShowForm(true)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"><Plus size={16}/> Add your first lead</button></div></section>}
         </div>
       </div>
 
@@ -469,7 +403,7 @@ export default function HomePage() {
         </form>
       </section></div>}
 
-      <footer className="border-t border-[var(--border)] px-5 py-5 text-center text-xs text-[var(--text-faint)]">Demo data is illustrative. Scores are heuristic, not a guarantee of conversion.</footer>
+      <footer className="border-t border-[var(--border)] px-5 py-5 text-center text-xs text-[var(--text-faint)]">Scores are heuristic, not a guarantee of conversion.</footer>
     </main>
   );
 }
