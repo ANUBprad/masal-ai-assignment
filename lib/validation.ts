@@ -42,7 +42,7 @@ export const callBriefRequestSchema = z.object({
 });
 
 export function readJsonObject(text: string): unknown {
-  const cleaned = text.trim().replace(/^`{3}(?:json)?s*/i, "").replace(/s*`{3}$/, "");
+  const cleaned = text.trim().replace(/^`{3}(?:json)?\\s*/i, "").replace(/\\s*`{3}$/, "");
   try {
     return JSON.parse(cleaned);
   } catch {
