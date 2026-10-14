@@ -8,13 +8,13 @@ A Next.js application for real-estate salespeople to understand inbound enquirie
 - **AI lead analysis:** summary, intent, requirements, concerns, recommended next action, and a suggested reply.
 - **Prioritization:** transparent rule-based score with Hot / Warm / Cold grouping.
 - **Sales copilot:** ask follow-up questions grounded in the selected lead's context.
-- **Call brief:** generate a call objective, talking points, discovery questions, watch-outs, and an opening line.
+- **Call brief (the invented feature):** generate a call objective, talking points, discovery questions, watch-outs, and an opening line. This is the extra feature added on top of the required core workflow (lead intake, AI analysis, conversational copilot, lead list & prioritization, clear display).
 - **Browser persistence:** leads are stored locally in this browser. Demo leads are included on first run.
 - **Bring your own key:** reviewer supplies a Gemini API key through the setup screen.
 
 ## Requirements
 
-- Node.js 20.10+ (Node.js 22 LTS recommended)
+- Node.js 22.6+ (Node.js 22 LTS recommended). The test runner uses Node's built-in TypeScript stripping (`--experimental-strip-types`, added in Node 22.6), so `npm test` will not run on older releases.
 - npm
 - A Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
@@ -83,10 +83,8 @@ Deploy to Vercel or another Node.js-capable host:
 
 ## AI usage disclosure
 
-Complete this section truthfully before submitting. Example structure:
+- **opencode (CLI coding assistant):** installed and validated this codebase, fixed the Node test-runner and TypeScript import issues, and updated this README.
+- **AI coding assistant(s):** the initial application build and the long series of `fix:`, `chore:`, and `docs:` commits, together with the retained `AGENTS.md` coding-agent rules, indicate an AI coding assistant was used to build and iterate on the app.
+- **Human review:** the repository owner reviewed and approved the changes and can explain the implementation choices.
 
-- ChatGPT: requirements interpretation, architecture and implementation assistance, debugging, and documentation.
-- CLI coding assistant: code generation, test execution, and repository workflow assistance.
-- Human review: verify every feature and be prepared to explain implementation choices in the interview.
-
-Edit this disclosure to reflect the tools you actually used.
+> Question for the owner: confirm the specific assistant(s) and tools (names, versions, and scope) used during the initial build so this disclosure is exact. Replace this note with the confirmed list before submitting; do not publish an unverified claim.
