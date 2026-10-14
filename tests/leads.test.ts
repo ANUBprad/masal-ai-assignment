@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSeededLead, parseStoredLeads, pipelineStats, resolveSelectedLead } from "../lib/leads.ts";
+import {
+  isSeededLead, loadStoredLeads, migrateSeededLeads, parseStoredLeads, pipelineStats,
+  resolveSelectedLead, LEADS_STORAGE_KEY, LEADS_VERSION_KEY, LEADS_VERSION
+} from "../lib/leads.ts";
 import type { Lead } from "../types/lead.ts";
 
 function makeLead(overrides: Partial<Lead> = {}): Lead {
@@ -14,7 +17,14 @@ function makeLead(overrides: Partial<Lead> = {}): Lead {
   };
 }
 
-const seededDemo = makeLead({ id: "demo-1", name: "Priya Sharma", demo: true });
+// The real fixture that caused the bug: seed ids written by the original code
+// before the `demo: true` flag existed.
+const flaglessSeed = makeLead({ id: "demo-2", name: "Rahul Mehta" });
+const flaggedSeed = makeLead({ id: "demo-1", name: "Priya Sharma", demo: true });
+
+function readFrom(store: Record<string, string>) {
+  return (key: string) => store[key] ?? null;
+}
 
 // 1. Fresh or corrupt storage must yield an empty workspace, not sample data.
 test("fresh or invalid storage initializes with zero leads", () => {
@@ -25,10 +35,14 @@ test("fresh or invalid storage initializes with zero leads", () => {
   assert.deepEqual(parseStoredLeads("[]"), []);
 });
 
-// 2. Seeded demo leads are never returned on first load or refresh.
-test("seeded demo leads are never loaded from storage", () => {
-  assert.deepEqual(parseStoredLeads(JSON.stringify([seededDemo])), []);
-  assert.deepEqual(parseStoredLeads(JSON.stringify([seededDemo, seededDemo])), []);
+// 2. Seeded demo leads are never returned — whether marked by the flag or only
+//    by their deterministic id (the actual bug: flagless legacy records).
+test("seeded demo leads are never loaded, with or without the demo flag", () => {
+  assert.deepEqual(parseStoredLeads(JSON.stringify([flaggedSeed])), []);
+  assert.deepEqual(parseStoredLeads(JSON.stringify([flaglessSeed])), []);
+  assert.deepEqual(parseStoredLeads(JSON.stringify([flaggedSeed, flaglessSeed])), []);
+  assert.equal(isSeededLead(flaglessSeed), true);
+  assert.equal(isSeededLead({ id: "demo-3" }), true);
 });
 
 // 3. A lead created by the salesperson survives a reload.
@@ -42,25 +56,55 @@ test("a created lead round-trips through storage on refresh", () => {
 });
 
 // 4. Migration drops only reliably identified seeds; ambiguous records stay.
-test("legacy demo records are removed without deleting ambiguous records", () => {
-  assert.equal(isSeededLead(seededDemo), true);
+//    A genuine customer named "Rahul" with a normal id must be preserved — the
+//    cleanup matches ids, never names.
+test("migration removes seeds but never deletes ambiguous or same-named leads", () => {
+  assert.equal(isSeededLead(flaggedSeed), true);
+  assert.equal(isSeededLead(flaglessSeed), true);
   assert.equal(isSeededLead({}), false);
   assert.equal(isSeededLead(null), false);
+  assert.equal(isSeededLead("demo-1"), false);
 
   const userLead = makeLead({ id: "lead-2", name: "Meera Nair" });
+  const realRahul = makeLead({ id: "lead-9", name: "Rahul Mehta" });
   const explicitNotDemo = makeLead({ id: "lead-3", demo: false });
   assert.equal(isSeededLead(userLead), false);
+  assert.equal(isSeededLead(realRahul), false);
   assert.equal(isSeededLead(explicitNotDemo), false);
 
-  const parsed = parseStoredLeads(JSON.stringify([seededDemo, userLead, explicitNotDemo, null, 42]));
-  assert.deepEqual(parsed.map((lead) => lead.id), ["lead-2", "lead-3"]);
+  const parsed = parseStoredLeads(JSON.stringify([flaggedSeed, flaglessSeed, userLead, realRahul, explicitNotDemo, null, 42]));
+  assert.deepEqual(parsed.map((lead) => lead.id), ["lead-2", "lead-9", "lead-3"]);
 });
 
-// 5. Empty-state stats and priority counts are zero; populated counts are correct.
+// 5. The seed cleanup is idempotent: running it again changes nothing.
+test("seed migration is idempotent", () => {
+  const input = [flaglessSeed, makeLead({ id: "lead-1" })];
+  const once = migrateSeededLeads(input);
+  const twice = migrateSeededLeads(once);
+  assert.deepEqual(once.map((lead) => lead.id), ["lead-1"]);
+  assert.deepEqual(twice.map((lead) => lead.id), ["lead-1"]);
+  assert.deepEqual(parseStoredLeads(JSON.stringify(parseStoredLeads(JSON.stringify(input)))).map((lead) => lead.id), ["lead-1"]);
+});
+
+// 6. Versioned load reports a legacy store once, then not again after stamping.
+test("versioned load flags a legacy store for migration exactly once", () => {
+  const store: Record<string, string> = { [LEADS_STORAGE_KEY]: JSON.stringify([flaglessSeed, makeLead({ id: "lead-1" })]) };
+  const first = loadStoredLeads(readFrom(store));
+  assert.deepEqual(first.leads.map((lead) => lead.id), ["lead-1"]);
+  assert.equal(first.migrated, true);
+
+  store[LEADS_VERSION_KEY] = String(LEADS_VERSION);
+  const second = loadStoredLeads(readFrom(store));
+  assert.deepEqual(second.leads.map((lead) => lead.id), ["lead-1"]);
+  assert.equal(second.migrated, false);
+});
+
+// 7. Empty-state stats and priority counts are zero; populated counts correct.
 test("empty workspace statistics and priority counts are zero", () => {
   const empty = pipelineStats([]);
   assert.equal(empty.total, 0);
   assert.equal(empty.actNow, 0);
+  assert.equal(empty.followUp, 0);
   assert.equal(empty.avgScore, 0);
   assert.deepEqual(empty.byPriority, { "Act Now": 0, "Follow Up": 0, "Nurture": 0 });
 
@@ -74,7 +118,7 @@ test("empty workspace statistics and priority counts are zero", () => {
   assert.equal(populated.byPriority["Nurture"], 1);
 });
 
-// 6. An empty workspace never resolves a selected lead (no detail panel crash).
+// 8. An empty workspace never resolves a selected lead (no detail panel crash).
 test("an empty workspace resolves no selected lead", () => {
   assert.equal(resolveSelectedLead([], null), undefined);
   assert.equal(resolveSelectedLead([], "demo-1"), undefined);
@@ -88,7 +132,7 @@ test("selection falls back to the first lead and ignores a stale id", () => {
   assert.equal(resolveSelectedLead([a, b], "missing")?.id, "a");
 });
 
-// 7. Creating the first lead from the empty state works end to end.
+// 9. Creating the first lead from the empty state works end to end.
 test("creating the first lead from an empty workspace persists it", () => {
   const empty = parseStoredLeads(null);
   assert.equal(empty.length, 0);
