@@ -90,6 +90,43 @@ test("an unsupported GROQ_MODEL falls back to the default", () => {
   assert.equal(providerPlan()[0].model, DEFAULT_MODELS.groq);
 });
 
+test("the default gemini model is a currently supported, non-retired id", () => {
+  assert.equal(DEFAULT_MODELS.gemini, "gemini-flash-lite-latest");
+  assert.equal(isSupportedModel("gemini", DEFAULT_MODELS.gemini), true);
+  // The retired 2.5 ids must no longer be selectable; they return HTTP 404.
+  assert.equal(isSupportedModel("gemini", "gemini-2.5-flash"), false);
+  assert.equal(isSupportedModel("gemini", "gemini-2.5-flash-lite"), false);
+});
+
+test("a retired GEMINI_MODEL falls back to the current default", () => {
+  setEnv({ GEMINI_API_KEY: "gemini-key", GEMINI_MODEL: "gemini-2.5-flash" });
+  const gemini = providerPlan().find((item) => item.provider === "gemini");
+  assert.ok(gemini);
+  assert.equal(gemini!.model, DEFAULT_MODELS.gemini);
+});
+
+test("a retired-model 404 is a safe, non-retried failure that logs no secrets", async () => {
+  setEnv({ GEMINI_API_KEY: "secret-gemini-key" });
+  const plan = providerPlan();
+  const logged: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => { logged.push(args.map(String).join(" ")); };
+  const stub = stubFetch(() => ({ status: 404, ok: false, body: { error: { code: 404, status: "NOT_FOUND", message: "model no longer available" } } }));
+  try {
+    await assert.rejects(
+      () => analyzeLead(plan, lead),
+      (error: unknown) => error instanceof AiFailure && error.kind === "invalid" &&
+        error.status === 502 && !/secret-gemini-key/.test(error.message)
+    );
+    assert.equal(stub.calls.length, 1); // deterministic, so it is not retried
+    assert.ok(logged.some((line) => line.includes('"provider":"gemini"') && line.includes('"upstreamStatus":404')));
+    assert.ok(logged.every((line) => !line.includes("secret-gemini-key")), "diagnostics must not leak the key");
+  } finally {
+    console.error = originalError;
+    stub.restore();
+  }
+});
+
 test("missing or blank optional keys are ignored", () => {
   setEnv({ GROQ_API_KEY: "groq-key", GROQ_API_KEY_2: "   ", GROQ_API_KEY_3: "groq-key-3" });
   const plan = providerPlan();

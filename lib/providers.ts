@@ -35,9 +35,16 @@ const AUTH_COOLDOWN_MS = 60 * 60 * 1000;
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_ENDPOINT_ROOT = "https://generativelanguage.googleapis.com/v1beta/models";
 
+// Model allow-list. The Gemini 2.5 ids were retired ("no longer available to
+// new users", HTTP 404); on this account the current full-size flash models
+// answer 503 UNAVAILABLE while the lite flash models serve normally, so the
+// default is a rolling lite alias that survives future model retirement.
 const MODELS: Record<ProviderName, { readonly default: string; readonly ids: readonly string[] }> = {
   groq: { default: "openai/gpt-oss-120b", ids: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] },
-  gemini: { default: "gemini-2.5-flash", ids: ["gemini-2.5-flash", "gemini-2.5-flash-lite"] }
+  gemini: {
+    default: "gemini-flash-lite-latest",
+    ids: ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+  }
 };
 
 export const DEFAULT_MODELS: Record<ProviderName, string> = {
@@ -156,6 +163,23 @@ function cooldownFor(kind: FailureKind): number {
   return TRANSIENT_COOLDOWN_MS;
 }
 
+function correlationId(): string {
+  try {
+    return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12);
+  } catch { return Math.random().toString(36).slice(2, 12); }
+}
+
+// Secret-safe diagnostics for a failed provider attempt: provider, model id,
+// the upstream HTTP status, the failure category, and a per-request
+// correlation id. Never logs keys, headers, message content, or raw bodies.
+function logProviderFailure(req: string, candidate: ProviderKey, failure: AiFailure, error: unknown): void {
+  const upstreamStatus = error instanceof ProviderHttpError ? error.status : undefined;
+  console.error(`[ai-provider] ${JSON.stringify({
+    req, provider: candidate.provider, model: candidate.model,
+    kind: failure.kind, upstreamStatus, mappedStatus: failure.status
+  })}`);
+}
+
 // Test-only: clear in-memory cooldown and rotation state between cases.
 export function resetProviderStateForTests(): void {
   cooldowns.clear();
@@ -188,6 +212,7 @@ export async function attemptWithFailover<T>(
   let lastFailure: AiFailure | undefined;
   let attempts = 0;
   const budget = Math.max(1, candidates.length) * MAX_PASSES;
+  const req = correlationId();
 
   for (let pass = 0; pass < MAX_PASSES; pass += 1) {
     let progressed = false;
@@ -201,6 +226,7 @@ export async function attemptWithFailover<T>(
       } catch (error) {
         const failure = classify(error);
         lastFailure = failure;
+        logProviderFailure(req, candidate, failure, error);
         if (failure.kind === "invalid" || failure.kind === "malformed") throw failure;
         if (failure.kind === "rate_limit" || failure.kind === "auth") {
           setCooldown(candidate, failure.retryAfterMs ?? cooldownFor(failure.kind));

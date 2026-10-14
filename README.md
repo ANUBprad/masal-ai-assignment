@@ -147,7 +147,7 @@ The server reads these variables (see [`.env.example`](.env.example); loading is
 | `GROQ_MODEL` | No | Overrides the Groq model. Must match a supported id (`openai/gpt-oss-120b` or `openai/gpt-oss-20b`); otherwise the default is used. |
 | `GROQ_API_KEY_2` … `GROQ_API_KEY_5` | No | Extra Groq keys. When set, the starting key rotates per request and the app fails over on `429`/`5xx`. Blanks are ignored. |
 | `GEMINI_API_KEY` | No | Optional Gemini key, used as failover (or as primary with `AI_PROVIDER=gemini`). |
-| `GEMINI_MODEL` | No | Overrides the Gemini model (`gemini-2.5-flash` or `gemini-2.5-flash-lite`). |
+| `GEMINI_MODEL` | No | Overrides the Gemini model (`gemini-flash-lite-latest`, `gemini-3.5-flash-lite`, or `gemini-3.1-flash-lite`); otherwise the default is used. The retired `gemini-2.5-flash*` ids now return `404`. |
 
 Notes:
 
