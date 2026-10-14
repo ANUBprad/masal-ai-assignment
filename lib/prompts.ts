@@ -1,4 +1,4 @@
-import type { LeadInput } from "@/types/lead";
+import type { LeadAnalysis, LeadInput, Priority } from "@/types/lead";
 
 export function leadContext(lead: LeadInput): string {
   return [
@@ -8,6 +8,19 @@ export function leadContext(lead: LeadInput): string {
     `Budget: ${lead.budget}`,
     `Buying timeline: ${lead.timeline}`,
     `Customer message: ${lead.message}`
+  ].join("\n");
+}
+
+export function analysisContext(analysis: LeadAnalysis, score?: number, priority?: Priority): string {
+  return [
+    "Existing AI analysis of this lead:",
+    `Summary: ${analysis.summary}`,
+    `Customer intent: ${analysis.intent} (strength: ${analysis.intentStrength})`,
+    `Key requirements: ${analysis.requirements.join("; ") || "none recorded"}`,
+    `Objections/concerns: ${analysis.concerns.join("; ") || "none recorded"}`,
+    `Recommended next action: ${analysis.nextAction}`,
+    `Suggested response: ${analysis.suggestedReply}`,
+    ...(typeof score === "number" ? [`Rule-based score: ${score}${priority ? ` (${priority})` : ""}`] : [])
   ].join("\n");
 }
 

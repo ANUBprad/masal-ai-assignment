@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readJsonObject } from "../lib/validation.ts";
+import { validateAnalysis } from "../lib/validation.ts";
 import { validateLead } from "../lib/validation.ts";
 
 test("validates a complete lead", () => {
@@ -25,4 +26,31 @@ test("reads only JSON objects", async () => {
   }));
   assert.equal(result.hello, "world");
   await assert.rejects(() => readJsonObject(new Request("http://localhost", { method: "POST", body: "nope" })));
+});
+
+test("normalizes a valid analysis and enforces length limits", () => {
+  const analysis = validateAnalysis({
+    summary: "  Motivated buyer  ", intent: "High intent",
+    requirements: ["3 BHK", 42, "Gated community"], concerns: ["Timing unclear"],
+    nextAction: "Schedule a visit", suggestedReply: "Happy to help",
+    intentStrength: "Strong", confidenceNote: "Based on budget"
+  });
+  assert.equal(analysis?.summary, "Motivated buyer");
+  assert.deepEqual(analysis?.requirements, ["3 BHK", "Gated community"]);
+  assert.equal(analysis?.intentStrength, "Strong");
+
+  const clipped = validateAnalysis({
+    summary: "x".repeat(5000), intentStrength: "Bogus", requirements: Array(50).fill("item")
+  });
+  assert.equal(clipped?.summary.length, 4000);
+  assert.equal(clipped?.intentStrength, "Weak");
+  assert.equal(clipped?.requirements.length, 20);
+});
+
+test("rejects missing or malformed analysis safely", () => {
+  assert.equal(validateAnalysis(undefined), undefined);
+  assert.equal(validateAnalysis("nope"), undefined);
+  assert.equal(validateAnalysis([]), undefined);
+  assert.equal(validateAnalysis({}), undefined);
+  assert.equal(validateAnalysis({ summary: 42 }), undefined);
 });

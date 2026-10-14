@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { answerChat } from "@/lib/gemini";
 import { guard, errorResponse, jsonBody, HttpError } from "@/lib/http";
-import { validateLead } from "@/lib/validation";
+import { validateAnalysis, validateLead } from "@/lib/validation";
 import type { ChatMessage } from "@/types/lead";
 
 export const runtime = "nodejs";
@@ -24,7 +24,13 @@ export async function POST(request: Request) {
       ["user", "assistant"].includes(String((item as ChatMessage).role)) &&
       typeof (item as ChatMessage).content === "string"
     ).slice(-10) : [];
-    const answer = await answerChat(credentials, lead, history, body.question.trim());
+    const source = body.lead && typeof body.lead === "object" && !Array.isArray(body.lead)
+      ? (body.lead as Record<string, unknown>) : {};
+    const analysis = validateAnalysis(source.analysis);
+    const score = typeof source.score === "number" && Number.isFinite(source.score) ? source.score : undefined;
+    const priority = source.priority === "Hot" || source.priority === "Warm" || source.priority === "Cold"
+      ? source.priority : undefined;
+    const answer = await answerChat(credentials, lead, history, body.question.trim(), analysis, score, priority);
     return NextResponse.json({ answer }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);

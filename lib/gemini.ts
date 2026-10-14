@@ -1,6 +1,6 @@
-import { leadContext, ANALYSIS_PROMPT, CHAT_PROMPT, CALL_BRIEF_PROMPT } from "@/lib/prompts";
-import { safeAiError, type AiCredentials } from "@/lib/ai";
-import type { CallBrief, ChatMessage, LeadAnalysis, LeadInput } from "@/types/lead";
+import { leadContext, analysisContext, ANALYSIS_PROMPT, CHAT_PROMPT, CALL_BRIEF_PROMPT } from "./prompts.ts";
+import { safeAiError, type AiCredentials } from "./ai.ts";
+import type { CallBrief, ChatMessage, LeadAnalysis, LeadInput, Priority } from "@/types/lead";
 
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -71,12 +71,18 @@ export async function answerChat(
   credentials: AiCredentials,
   lead: LeadInput,
   history: ChatMessage[],
-  question: string
+  question: string,
+  analysis?: LeadAnalysis,
+  score?: number,
+  priority?: Priority
 ): Promise<string> {
   const safeHistory = history.slice(-10).map((item) =>
     `${item.role === "user" ? "Salesperson" : "Copilot"}: ${item.content.slice(0, 3000)}`
   ).join("\n");
-  return generateText(credentials, `${CHAT_PROMPT}\n\nLead context:\n${leadContext(lead)}\n\nConversation:\n${safeHistory}\nSalesperson's latest question:\n${question.slice(0, 5000)}`);
+  const context = analysis
+    ? `${leadContext(lead)}\n\n${analysisContext(analysis, score, priority)}`
+    : leadContext(lead);
+  return generateText(credentials, `${CHAT_PROMPT}\n\nLead context:\n${context}\n\nConversation:\n${safeHistory}\nSalesperson's latest question:\n${question.slice(0, 5000)}`);
 }
 
 export async function generateCallBrief(credentials: AiCredentials, lead: LeadInput): Promise<CallBrief> {
