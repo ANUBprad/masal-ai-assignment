@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Check, Clock3, Copy, Filter, Flame, Home, LoaderCircle, MapPin, MessageCircle, Plus, Search, Send, Sparkles, Target, TrendingUp, Users, WandSparkles, X } from "lucide-react";
+import { ArrowRight, Clock3, Copy, Filter, Flame, Home, LoaderCircle, MapPin, MessageCircle, Plus, Search, Send, Sparkles, Target, TrendingUp, Users, WandSparkles, X } from "lucide-react";
 import { scoreLead } from "@/lib/scoring";
 import type { ChatMessage, Lead, LeadAnalysis, LeadInput, LeadPriority, LeadStatus } from "@/types/lead";
 
