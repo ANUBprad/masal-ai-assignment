@@ -1,12 +1,27 @@
 export const BUYING_TIMELINES = [
-  "Immediately",
   "Within 30 days",
-  "1–3 months",
-  "3–6 months",
+  "31–60 days",
+  "61–90 days",
+  "Over 90 days",
   "Just exploring / no rush"
 ] as const;
 
 export type BuyingTimeline = (typeof BUYING_TIMELINES)[number];
+
+// Older intake labels (from before the current buckets) mapped to their closest
+// current option, so leads saved with a legacy timeline still load and score.
+const LEGACY_TIMELINES: Record<string, BuyingTimeline> = {
+  "Immediately": "Within 30 days",
+  "1–3 months": "61–90 days",
+  "3–6 months": "Over 90 days"
+};
+
+export function normalizeTimeline(value: unknown): BuyingTimeline | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if ((BUYING_TIMELINES as readonly string[]).includes(trimmed)) return trimmed as BuyingTimeline;
+  return LEGACY_TIMELINES[trimmed];
+}
 export type Priority = "Act Now" | "Follow Up" | "Nurture";
 export type LeadStatus = "New" | "Contacted" | "Visit scheduled" | "Qualified" | "Closed";
 

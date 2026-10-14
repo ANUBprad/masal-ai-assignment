@@ -4,9 +4,7 @@
 // lead fields (plus the recorded lead status) and applies fixed rules, so the
 // same input always produces the same score and breakdown. Missing information
 // is reported as `missing`, never silently treated as a positive signal.
-import type {
-  BuyingTimeline, LeadInput, LeadStatus, Priority, ScoreDimension, ScoreDimensionKey
-} from "../types/lead";
+import { normalizeTimeline, type BuyingTimeline, type LeadInput, type LeadStatus, type Priority, type ScoreDimension, type ScoreDimensionKey } from "../types/lead.ts";
 
 export const SCORE_MAX = 100;
 
@@ -67,12 +65,31 @@ export function isPriority(value: unknown): value is Priority {
 // Pattern helpers. Each dimension has fixed, documented rules.
 // ---------------------------------------------------------------------------
 const TIMELINE_POINTS: Record<BuyingTimeline, number> = {
-  Immediately: 25, // within 30 days
   "Within 30 days": 25,
-  "1–3 months": 14, // scored at the conservative 61–90 day bucket (see note below)
-  "3–6 months": 7, // over 90 days
+  "31–60 days": 20,
+  "61–90 days": 14,
+  "Over 90 days": 7,
   "Just exploring / no rush": 0 // no stated timeline
 };
+
+// Clauses are split on sentence punctuation and contrastive conjunctions so a
+// positive phrase ("ready to buy") in one clause cannot be cancelled by a
+// negation or an exploratory phrase in another.
+const CLAUSE_SPLIT_RE = /[.,;!?]|\b(?:but|however|although|though|yet)\b/i;
+
+function clauses(message: string): string[] {
+  return message.toLowerCase().split(CLAUSE_SPLIT_RE).map((part) => part.trim()).filter(Boolean);
+}
+
+// A negation immediately around an intent verb ("not ready to buy", "won't buy",
+// "no plans to purchase") cancels the positive tier for that clause.
+const NEGATED_INTENT_RE =
+  /\b(?:not|never|no|won'?t|can'?t|cannot|don'?t|doesn'?t|isn'?t|aren'?t|without)\b[^.]{0,40}?\b(?:buy|purchase|book|pay|proceed|ready)\b|\bno (?:plans?|intent|interest|intention)\b/i;
+
+// A negation around a visit/next-step verb ("can't visit", "not ready to meet")
+// means the engagement action was not actually committed to.
+const NEGATED_ENGAGEMENT_RE =
+  /\b(?:not|never|no|won'?t|can'?t|cannot|don'?t|doesn'?t|isn'?t|aren'?t|unable)\b[^.]{0,40}?\b(?:visit|tour|meet|call|schedule|appointment)\b/i;
 
 interface IntentRule { points: number; label: string; patterns: RegExp[]; }
 // Evaluated top to bottom; the first tier with any match wins.
@@ -88,14 +105,14 @@ const INTENT_RULES: IntentRule[] = [
     patterns: [/\bcompar\w*\b/, /\bshortlist\w*\b/, /\bnarrowed (?:it )?down\b/, /\bsend (?:me )?(?:the )?floor ?plans?\b/, /\bdeciding between\b/, /\bwhich (?:project|option|builder)\b/]
   },
   {
+    points: 3,
+    label: "Browsing without a purchase commitment",
+    patterns: [/\bjust (?:looking|browsing|exploring|starting)\b/, /\bonly (?:researching|exploring|looking|browsing|starting)\b/, /\bexploring\b/, /\bcurious\b/, /\bno (?:urgency|rush)\b/, /\blook(?:ing)? around\b/]
+  },
+  {
     points: 10,
     label: "General interest in purchasing",
     patterns: [/\blooking for\b/, /\binterested in (?:buying|a|an|this|that)\b/, /\bplanning to (?:buy|purchase)\b/, /\bwant (?:a|an|to buy)\b/, /\bneed (?:a|an)\b/, /\blooking to (?:buy|purchase)\b/]
-  },
-  {
-    points: 3,
-    label: "Browsing without a purchase commitment",
-    patterns: [/\bjust (?:looking|browsing|exploring|starting)\b/, /\bexploring\b/, /\bcurious\b/, /\bno (?:urgency|rush)\b/, /\blook(?:ing)? around\b/]
   }
 ];
 
@@ -115,21 +132,25 @@ function dimension(key: ScoreDimensionKey, label: string, earned: number, eviden
 }
 
 // Buying timeline (25). Parses the recorded timeline only — urgency stated by
-// the LLM is never used. Note: the intake form's fixed options do not expose a
-// distinct 31–60 day choice, so "1–3 months" is scored at the conservative
-// 61–90 day bucket and the 20-point bucket is a documented, unused allowance.
+// the LLM is never used. Legacy labels are normalized to the current buckets.
 function timelineDimension(input: LeadInput): ScoreDimension {
-  const points = TIMELINE_POINTS[input.timeline] ?? 0;
-  if (points === 0) return dimension("timeline", "Buying timeline", 0, [], ["No buying timeline stated (exploratory)"]);
-  return dimension("timeline", "Buying timeline", points, [`Stated timeline: ${input.timeline}`], []);
+  const timeline = normalizeTimeline(input.timeline);
+  const points = timeline ? TIMELINE_POINTS[timeline] : 0;
+  if (!timeline || points === 0) return dimension("timeline", "Buying timeline", 0, [], ["No buying timeline stated (exploratory)"]);
+  return dimension("timeline", "Buying timeline", points, [`Stated timeline: ${timeline}`], []);
 }
 
 // Purchase intent (25). Classified only from the customer message; a short
-// timeline alone never implies a purchase commitment.
+// timeline alone never implies a purchase commitment. Positive tiers are judged
+// per affirmative clause so a negation in one clause does not mask a real signal
+// in another; the browsing tier is judged on every clause so exploratory
+// phrasing always caps the score below a general-interest claim.
 function intentDimension(input: LeadInput): ScoreDimension {
-  const message = input.message.toLowerCase();
+  const parts = clauses(input.message);
+  const affirmative = parts.filter((part) => !NEGATED_INTENT_RE.test(part));
   for (const rule of INTENT_RULES) {
-    if (rule.patterns.some((pattern) => pattern.test(message))) {
+    const target = rule.points === 3 ? parts : affirmative;
+    if (target.some((part) => rule.patterns.some((pattern) => pattern.test(part)))) {
       return dimension("intent", "Purchase intent", rule.points, [rule.label], []);
     }
   }
@@ -186,16 +207,20 @@ function budgetDimension(input: LeadInput): ScoreDimension {
   return dimension("budget", "Budget readiness", earned, evidence, missing);
 }
 
-// Engagement and commitment (10). Uses only recorded actions: the lead's saved
-// status (a committed next step) or an explicit next-step request in the
-// message. We never assume a reply, booking, or follow-up happened.
+// Engagement and commitment (10). Uses only recorded actions. A scheduled visit
+// is a confirmed commitment (10); a qualified lead shows recorded engagement but
+// not yet a visit (5). Message-based clues are judged on affirmative clauses so
+// "can't visit" does not earn credit. We never assume a reply or booking happened.
 function engagementDimension(input: LeadInput, status?: LeadStatus): ScoreDimension {
-  if (status === "Visit scheduled" || status === "Qualified") {
-    return dimension("engagement", "Engagement & commitment", 10, [`Recorded commitment (status: ${status})`], []);
+  if (status === "Visit scheduled") {
+    return dimension("engagement", "Engagement & commitment", 10, ["Recorded commitment (status: Visit scheduled)"], []);
   }
-  const message = input.message;
-  if (COMMITMENT_MSG_RE.test(message)) return dimension("engagement", "Engagement & commitment", 10, ["Customer confirmed a next step"], []);
-  if (NEXT_STEP_MSG_RE.test(message)) return dimension("engagement", "Engagement & commitment", 5, ["Customer requested a concrete next step"], []);
+  if (status === "Qualified") {
+    return dimension("engagement", "Engagement & commitment", 5, ["Recorded engagement (status: Qualified)"], []);
+  }
+  const affirmative = clauses(input.message).filter((part) => !NEGATED_ENGAGEMENT_RE.test(part));
+  if (affirmative.some((part) => COMMITMENT_MSG_RE.test(part))) return dimension("engagement", "Engagement & commitment", 10, ["Customer confirmed a next step"], []);
+  if (affirmative.some((part) => NEXT_STEP_MSG_RE.test(part))) return dimension("engagement", "Engagement & commitment", 5, ["Customer requested a concrete next step"], []);
   return dimension("engagement", "Engagement & commitment", 0, [], ["No confirmed site visit or next-step commitment recorded"]);
 }
 

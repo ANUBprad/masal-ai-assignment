@@ -63,7 +63,7 @@ const DEMO_SEED: LeadSeed[] = [
   {
     id: "demo-2", name: "Rahul Mehta", location: "Sarjapur Road, Bengaluru",
     propertyRequirement: "2 BHK apartment with amenities", budget: "₹75–90 L",
-    timeline: "1–3 months", message: "I'm comparing a few projects in Sarjapur. Can you send floor plans and maintenance details? Still deciding whether to buy now or later.",
+    timeline: "61–90 days", message: "I'm comparing a few projects in Sarjapur. Can you send floor plans and maintenance details? Still deciding whether to buy now or later.",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), updatedAt: new Date().toISOString(),
     status: "Contacted", demo: true, chat: [], analysis: {
       summary: "A comparison-stage buyer researching 2 BHK options and recurring costs around Sarjapur Road.",

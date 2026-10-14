@@ -52,11 +52,17 @@ test("a fully qualified buyer reaches the maximum score", () => {
   assert.equal(dim(result, "engagement").earned, 10);
 });
 
-// 4. Buyer with a 60–90 day timeline.
-test("a 60–90 day timeline scores the 61–90 bucket", () => {
-  assert.equal(dim(scoreLead({ ...within30, timeline: "1–3 months" }), "timeline").earned, 14);
-  assert.equal(dim(scoreLead({ ...within30, timeline: "Immediately" }), "timeline").earned, 25);
-  assert.equal(dim(scoreLead({ ...within30, timeline: "3–6 months" }), "timeline").earned, 7);
+// 4. Each timeline bucket scores its documented points, including legacy labels.
+test("timeline buckets score their points and legacy labels normalize", () => {
+  const timeline = (t: string) => dim(scoreLead({ ...within30, timeline: t as LeadInput["timeline"] }), "timeline");
+  assert.equal(timeline("Within 30 days").earned, 25);
+  assert.equal(timeline("31–60 days").earned, 20);
+  assert.equal(timeline("61–90 days").earned, 14);
+  assert.equal(timeline("Over 90 days").earned, 7);
+  assert.equal(timeline("Just exploring / no rush").earned, 0);
+  assert.equal(timeline("Immediately").earned, 25);
+  assert.equal(timeline("1–3 months").earned, 14);
+  assert.equal(timeline("3–6 months").earned, 7);
 });
 
 // 5. Buyer who is only browsing.
@@ -101,6 +107,31 @@ test("engagement is recorded-action based: none vs a confirmed visit", () => {
   assert.equal(dim(visited, "engagement").earned, 10);
 });
 
+// 8a. Status tiers: only a scheduled visit is a commitment; "Qualified" is
+// recorded engagement, not a visit; earlier stages earn nothing.
+test("engagement status tiers: Visit scheduled > Qualified > Contacted", () => {
+  const base = { ...within30, message: "Hi, please share the pricing." };
+  assert.equal(dim(scoreLead(base, { status: "Contacted" }), "engagement").earned, 0);
+  assert.equal(dim(scoreLead(base, { status: "Qualified" }), "engagement").earned, 5);
+  assert.equal(dim(scoreLead(base, { status: "Visit scheduled" }), "engagement").earned, 10);
+});
+
+// 8b. A message that negates the next step ("can't visit") earns no credit.
+test("engagement ignores a negated next step", () => {
+  const result = scoreLead({ ...within30, message: "I can't visit this weekend, sorry." });
+  assert.equal(dim(result, "engagement").earned, 0);
+});
+
+// 8c. Purchase-intent heuristics respect negation and exploration.
+test("intent heuristics treat negation and exploration correctly", () => {
+  const intent = (message: string) => dim(scoreLead({ ...within30, message }), "intent").earned;
+  assert.equal(intent("I'm not ready to purchase."), 0);
+  assert.equal(intent("I'm just exploring and won't buy soon."), 3);
+  assert.equal(intent("I'm comparing properties and may purchase next month."), 18);
+  assert.equal(intent("I'm ready to buy now."), 25);
+  assert.equal(intent("I need an apartment within 30 days, but I'm only researching."), 3);
+});
+
 // 9. Every score boundary.
 test("priority thresholds map 0, 49, 50, 79, 80, 100 correctly", () => {
   assert.equal(priorityForScore(0), "Nurture");
@@ -132,7 +163,7 @@ test("score stays within 0–100 and each dimension within its maximum", () => {
   const samples: LeadInput[] = [
     within30,
     { ...within30, timeline: "Just exploring / no rush", message: "Just curious." },
-    { name: "F", location: "X", propertyRequirement: "plot", budget: "flexible", timeline: "3–6 months", message: "Comparing options." },
+    { name: "F", location: "X", propertyRequirement: "plot", budget: "flexible", timeline: "Over 90 days", message: "Comparing options." },
     { name: "G", location: "", propertyRequirement: "", budget: "", timeline: "Just exploring / no rush", message: "Hi" }
   ];
   for (const input of samples) {

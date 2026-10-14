@@ -19,6 +19,14 @@ test("rejects an invalid timeline", () => {
   }));
 });
 
+test("normalizes a legacy timeline to the current bucket", () => {
+  const lead = validateLead({
+    name: "Priya Sharma", location: "Whitefield", propertyRequirement: "3 BHK",
+    budget: "₹1.4 Cr", timeline: "1–3 months", message: "Would like to visit."
+  });
+  assert.equal(lead.timeline, "61–90 days");
+});
+
 test("reads only JSON objects", async () => {
   const result = await readJsonObject(new Request("http://localhost", {
     method: "POST", headers: { "content-type": "application/json" },

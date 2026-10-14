@@ -51,15 +51,15 @@ The score is deterministic and calculated in `lib/scoring.ts` only — never by 
 
 | Dimension | Max | Rule (summary) |
 | --- | ---: | --- |
-| Buying timeline | 25 | `Immediately`/`Within 30 days` 25 · `1–3 months` 14 · `3–6 months` 7 · exploring 0 |
+| Buying timeline | 25 | `Within 30 days` 25 · `31–60 days` 20 · `61–90 days` 14 · `Over 90 days` 7 · exploring 0 |
 | Purchase intent | 25 | ready-to-purchase 25 · comparing/shortlisting 18 · general interest 10 · browsing 3 · no evidence 0 |
 | Requirement clarity | 20 | 5 each for location, property type/configuration, budget specified, and stated preferences/constraints |
 | Budget readiness | 20 | up to 10 for a specific budget figure + up to 10 for explicit financing readiness |
-| Engagement & commitment | 10 | confirmed next step / `Visit scheduled`/`Qualified` 10 · concrete next-step request 5 · none 0 |
+| Engagement & commitment | 10 | `Visit scheduled` 10 · `Qualified` 5 · confirmed/requested next step per message · none 0 |
 
 Sales priority: **Act Now** 80–100 · **Follow Up** 50–79 · **Nurture** 0–49. Each lead's detail panel shows the score out of 100, the label, the five-dimension breakdown with earned/max, the positive signals, and the missing qualification information. These are provisional prioritisation labels, not qualification statuses or a probability of closing.
 
-Known limitation: the intake form's fixed timeline options do not expose a distinct 31–60 day choice, so `1–3 months` is scored at the conservative 61–90 day bucket and the 20-point timeline bucket is currently unreachable through the UI.
+Purchase intent is judged per clause: a negation ("not ready to buy") is not counted as positive, and exploratory phrasing ("just looking", "only researching") caps the score below a general-interest claim. Legacy timeline labels saved by earlier versions (`Immediately`, `1–3 months`, `3–6 months`) are normalized on load and validation to the current buckets (`Within 30 days`, `61–90 days`, `Over 90 days`).
 
 ## Additional feature: Call Brief
 

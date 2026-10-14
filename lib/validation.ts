@@ -1,4 +1,4 @@
-import { BUYING_TIMELINES, type LeadAnalysis, type LeadInput } from "../types/lead.ts";
+import { normalizeTimeline, type LeadAnalysis, type LeadInput } from "../types/lead.ts";
 
 const ANALYSIS_TEXT_LIMIT = 4000;
 const ANALYSIS_ITEM_LIMIT = 600;
@@ -18,7 +18,9 @@ export function validateLead(value: unknown): LeadInput {
   if (!result.location || result.location.length > 160) throw new Error("Enter a valid location.");
   if (!result.propertyRequirement || result.propertyRequirement.length > 300) throw new Error("Enter a valid property requirement.");
   if (!result.budget || result.budget.length > 120) throw new Error("Enter a valid budget.");
-  if (!(BUYING_TIMELINES as readonly string[]).includes(result.timeline)) throw new Error("Choose a valid buying timeline.");
+  const timeline = normalizeTimeline(result.timeline);
+  if (!timeline) throw new Error("Choose a valid buying timeline.");
+  result.timeline = timeline;
   if (result.message.length < 5 || result.message.length > 10000) throw new Error("Customer message must be between 5 and 10,000 characters.");
   return result;
 }

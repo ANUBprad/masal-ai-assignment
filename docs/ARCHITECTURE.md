@@ -115,7 +115,7 @@ Defined in `types/lead.ts`.
 | `location` | string | Non-empty, ≤160 chars. |
 | `propertyRequirement` | string | Non-empty, ≤300 chars. |
 | `budget` | string | Non-empty, ≤120 chars (free text; not parsed numerically). |
-| `timeline` | `BuyingTimeline` | One of `BUYING_TIMELINES` (allow-listed). |
+| `timeline` | `BuyingTimeline` | One of `BUYING_TIMELINES` (allow-listed); legacy labels (`Immediately`, `1–3 months`, `3–6 months`) are normalized to the current buckets by `normalizeTimeline`. |
 | `message` | string | 5–10,000 chars. |
 
 **Analysis (`LeadAnalysis`)** — produced by `/api/analyze`: `summary`, `intent`, `requirements[]`, `concerns[]`, `nextAction`, `suggestedReply`, `intentStrength` (`Strong`/`Moderate`/`Weak`), `confidenceNote`, and the separation fields `knownFacts[]`, `inferences[]`, `unknowns[]`, `dealRisks[]`. The model separates confirmed facts from inferences and unknowns and does not produce a numeric score.
