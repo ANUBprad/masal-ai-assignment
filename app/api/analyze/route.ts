@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { analyzeLead } from "@/lib/gemini";
-import { credentialsFrom, errorResponse, jsonBody, HttpError } from "@/lib/http";
+import { guard, errorResponse, jsonBody, HttpError } from "@/lib/http";
 import { validateLead } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const credentials = credentialsFrom(request);
+    const credentials = guard(request);
     const body = await jsonBody(request);
     let lead;
     try {

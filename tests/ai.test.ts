@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSupportedModel, parseAiCredentials, SUPPORTED_MODELS } from "../lib/ai.ts";
+import { DEFAULT_MODEL, isSupportedModel, serverCredentials, SUPPORTED_MODELS } from "../lib/ai.ts";
 
 test("supported model IDs are unique", () => {
   const ids = SUPPORTED_MODELS.map((item) => item.id);
@@ -8,17 +8,21 @@ test("supported model IDs are unique", () => {
   assert.ok(ids.includes("gemini-2.5-flash"));
 });
 
-test("credential parser accepts a key and supported model", () => {
-  const result = parseAiCredentials(new Headers({
-    "x-gemini-api-key": " test-key ",
-    "x-gemini-model": "gemini-2.5-flash"
-  }));
-  assert.deepEqual(result, { apiKey: "test-key", model: "gemini-2.5-flash" });
+test("server credentials come from the environment", () => {
+  process.env.GEMINI_API_KEY = " test-key ";
+  process.env.GEMINI_MODEL = "gemini-2.5-flash-lite";
+  assert.deepEqual(serverCredentials(), { apiKey: "test-key", model: "gemini-2.5-flash-lite" });
+
+  process.env.GEMINI_MODEL = "unknown-model";
+  assert.equal(serverCredentials().model, DEFAULT_MODEL);
+
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_MODEL;
 });
 
-test("credential parser rejects missing key and unsupported model", () => {
-  assert.throws(() => parseAiCredentials(new Headers({ "x-gemini-model": "gemini-2.5-flash" })));
-  assert.throws(() => parseAiCredentials(new Headers({ "x-gemini-api-key": "key", "x-gemini-model": "unknown" })));
+test("server credentials require a configured key", () => {
+  delete process.env.GEMINI_API_KEY;
+  assert.throws(() => serverCredentials());
 });
 
 test("model allowlist does not accept arbitrary values", () => {

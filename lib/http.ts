@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
-import { parseAiCredentials, safeAiError } from "@/lib/ai";
+import { safeAiError } from "@/lib/ai";
+import { HttpError, guard } from "@/lib/guard";
 
-export function credentialsFrom(request: Request) {
-  try {
-    return parseAiCredentials(request.headers);
-  } catch (error) {
-    throw new HttpError(error instanceof Error ? error.message : "AI credentials are required.", 400);
-  }
-}
-
-export class HttpError extends Error {
-  constructor(message: string, public status: number) {
-    super(message);
-  }
-}
+export { HttpError, guard };
 
 export function errorResponse(error: unknown) {
   const status = error instanceof HttpError ? error.status : 502;

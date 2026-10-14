@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowDownRight, ArrowRight, Bot, Check, ChevronDown, CircleHelp,
-  Clock3, Flame, Home, LayoutDashboard, LogOut, MessageCircle, Plus,
-  Search, Send, Settings2, Sparkles, Target, Users, X, Zap, PhoneCall, RefreshCw,
+  Activity, ArrowDownRight, Bot, Check, ChevronDown, CircleHelp,
+  Clock3, Flame, Home, LayoutDashboard, MessageCircle, Plus,
+  Search, Send, Sparkles, Target, Users, X, Zap, PhoneCall, RefreshCw,
   Copy, Trash2, Filter, Building2, MapPin, Wallet, CalendarDays
 } from "lucide-react";
-import SetupScreen from "@/components/SetupScreen";
 import type { ChatMessage, Lead, LeadInput, LeadStatus, Priority } from "@/types/lead";
 import { BUYING_TIMELINES } from "@/types/lead";
 import { scoreLead } from "@/lib/scoring";
@@ -69,15 +68,12 @@ const STATUSES: LeadStatus[] = ["New", "Contacted", "Visit scheduled", "Qualifie
 function makeId() { return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
 
 export default function HomePage() {
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
   const [leads, setLeads] = useState<Lead[]>(DEMO_LEADS);
   const [selectedId, setSelectedId] = useState("demo-1");
   const [hydrated, setHydrated] = useState(false);
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"All" | Priority>("All");
   const [showForm, setShowForm] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [busy, setBusy] = useState<"" | "analyze" | "chat" | "brief">("");
   const [notice, setNotice] = useState("");
   const [question, setQuestion] = useState("");
@@ -112,16 +108,13 @@ export default function HomePage() {
   const hotCount = leads.filter((lead) => lead.priority === "Hot").length;
   const avgScore = leads.length ? Math.round(leads.reduce((sum, lead) => sum + lead.score, 0) / leads.length) : 0;
 
-  function aiHeaders() {
-    return { "content-type": "application/json", "x-gemini-api-key": apiKey, "x-gemini-model": model };
-  }
   function updateLead(id: string, patch: Partial<Lead>) {
     setLeads((current) => current.map((lead) => lead.id === id ? { ...lead, ...patch, updatedAt: new Date().toISOString() } : lead));
   }
   async function analyze(lead: Lead) {
     setBusy("analyze"); setNotice("");
     try {
-      const response = await fetch("/api/analyze", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ lead }), cache: "no-store" });
+      const response = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ lead }), cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Analysis failed.");
       updateLead(lead.id, { analysis: data.analysis });
@@ -158,7 +151,7 @@ export default function HomePage() {
     setQuestion(""); setBusy("chat"); setNotice("");
     try {
       const response = await fetch("/api/chat", {
-        method: "POST", headers: aiHeaders(),
+        method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ lead: selected, history: selected.chat, question: prompt }), cache: "no-store"
       });
       const data = await response.json();
@@ -174,7 +167,7 @@ export default function HomePage() {
     if (!selected) return;
     setBusy("brief"); setNotice("");
     try {
-      const response = await fetch("/api/call-brief", { method: "POST", headers: aiHeaders(), body: JSON.stringify({ lead: selected }), cache: "no-store" });
+      const response = await fetch("/api/call-brief", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ lead: selected }), cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not create call brief.");
       updateLead(selected.id, { callBrief: data.brief });
@@ -191,10 +184,6 @@ export default function HomePage() {
     if (selectedId === id && remaining[0]) setSelectedId(remaining[0].id);
   }
 
-  if (!apiKey || !model) {
-    return <SetupScreen onConnected={(key, selectedModel) => { setApiKey(key); setModel(selectedModel); }} />;
-  }
-
   return (
     <main className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-[#e5eae5] bg-white/90 backdrop-blur-xl">
@@ -203,9 +192,8 @@ export default function HomePage() {
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#14251d] text-[#d7f36a]"><Sparkles size={20}/></div>
             <div><p className="font-bold tracking-tight">masal<span className="text-[#1d5d43]">.ai</span></p><p className="text-[10px] uppercase tracking-[.17em] text-[#87938a]">Lead intelligence</p></div>
           </div>
-          <div className="hidden items-center gap-2 rounded-full border border-[#e5eae5] bg-[#f8faf7] px-3 py-2 text-xs text-[#68756d] md:flex"><span className="h-2 w-2 rounded-full bg-[#3f9d65]"/><span>Gemini connected</span><span className="text-[#a0aaa2]">·</span><span>{model}</span></div>
+          <div className="hidden items-center gap-2 rounded-full border border-[#e5eae5] bg-[#f8faf7] px-3 py-2 text-xs text-[#68756d] md:flex"><span className="h-2 w-2 rounded-full bg-[#3f9d65]"/><span>Gemini connected</span></div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowSettings(true)} className="inline-flex items-center gap-2 rounded-xl border border-[#e5eae5] px-3 py-2.5 text-xs font-semibold hover:bg-[#f4f7f2]"><Settings2 size={15}/> <span className="hidden sm:inline">AI settings</span></button>
             <div className="grid h-9 w-9 place-items-center rounded-full bg-[#dcebdc] text-xs font-bold text-[#1d5d43]">AM</div>
           </div>
         </div>
@@ -223,7 +211,6 @@ export default function HomePage() {
           <div className="mt-auto rounded-2xl bg-[#f5f7f1] p-4">
             <div className="mb-3 grid h-9 w-9 place-items-center rounded-xl bg-[#d7f36a] text-[#14251d]"><Zap size={17}/></div>
             <p className="text-sm font-bold">A better next move</p><p className="mt-1 text-xs leading-5 text-[#78847a]">AI turns enquiry context into practical sales actions.</p>
-            <button onClick={() => setShowSettings(true)} className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-[#1d5d43]">Connection settings <ArrowRight size={13}/></button>
           </div>
         </aside>
 
@@ -309,7 +296,6 @@ export default function HomePage() {
 
       {showForm && <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#102119]/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false); }}><section role="dialog" aria-modal="true" aria-labelledby="new-lead-title" className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-7"><div className="mb-5 flex items-start justify-between gap-4"><div><p className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-[#1d5d43]">New enquiry</p><h2 id="new-lead-title" className="text-xl font-bold tracking-tight">Add a lead for analysis</h2><p className="mt-1 text-xs leading-5 text-[#839087]">Add the details you have. You can update the lead later.</p></div><button onClick={() => setShowForm(false)} className="rounded-lg p-2 hover:bg-[#f4f7f2]"><X size={17}/></button></div><form onSubmit={createLead} className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><Field label="Customer name"><input required minLength={2} maxLength={120} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Priya Sharma" className={inputClass}/></Field><Field label="Location"><input required value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Whitefield, Bengaluru" className={inputClass}/></Field><Field label="Property requirement"><input required value={form.propertyRequirement} onChange={(e) => setForm({ ...form, propertyRequirement: e.target.value })} placeholder="e.g. 3 BHK apartment" className={inputClass}/></Field><Field label="Budget"><input required value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="e.g. ₹1.2–1.5 Cr" className={inputClass}/></Field><Field label="Buying timeline"><select value={form.timeline} onChange={(e) => setForm({ ...form, timeline: e.target.value as LeadInput["timeline"] })} className={inputClass}>{BUYING_TIMELINES.map((timeline) => <option key={timeline}>{timeline}</option>)}</select></Field></div><Field label="Customer message / enquiry"><textarea required minLength={5} rows={5} maxLength={10000} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Paste the customer's enquiry or a short conversation…" className={inputClass}/></Field><div className="flex flex-wrap justify-end gap-2 border-t border-[#edf0ec] pt-4"><button type="button" onClick={() => setShowForm(false)} className="rounded-xl border border-[#dfe6dd] px-4 py-3 text-xs font-bold">Cancel</button><button className="inline-flex items-center gap-2 rounded-xl bg-[#1d5d43] px-4 py-3 text-xs font-bold text-white"><Sparkles size={15}/> Save and analyze</button></div></form></section></div>}
 
-      {showSettings && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#102119]/40 p-5 backdrop-blur-[2px]"><section role="dialog" aria-modal="true" aria-labelledby="settings-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#1d5d43]">Connection</p><h2 id="settings-title" className="mt-2 text-xl font-bold">AI settings</h2><p className="mt-1 text-xs leading-5 text-[#87938a]">The key exists only in this page&apos;s memory. Refreshing clears it.</p></div><button onClick={() => setShowSettings(false)} className="rounded-lg p-2 hover:bg-[#f4f7f2]"><X size={17}/></button></div><p className="mt-5 rounded-xl bg-[#f4f7f2] p-3 text-xs leading-5 text-[#526057]">Connected model: <strong>{model}</strong>. To switch credentials, return to setup. This clears the current key from memory.</p><button onClick={() => { setApiKey(""); setModel(""); setShowSettings(false); }} className="mt-4 w-full rounded-xl border border-[#e5eae5] px-4 py-3 text-sm font-bold hover:bg-[#f8faf7]"><LogOut size={15} className="mr-2 inline"/> Disconnect and reopen setup</button></section></div>}
       <footer className="border-t border-[#e5eae5] bg-white px-5 py-5 text-center text-[10px] text-[#9aa59c]">Masal AI · Lead intelligence for thoughtful real-estate sales · Demo data is illustrative</footer>
     </main>
   );

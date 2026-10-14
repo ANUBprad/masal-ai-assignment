@@ -4,8 +4,6 @@ export const SUPPORTED_MODELS = [
 ] as const;
 
 export const DEFAULT_MODEL = SUPPORTED_MODELS[0].id;
-export const API_KEY_HEADER = "x-gemini-api-key";
-export const MODEL_HEADER = "x-gemini-model";
 const MAX_KEY_LENGTH = 512;
 
 export function isSupportedModel(model: string): boolean {
@@ -14,18 +12,14 @@ export function isSupportedModel(model: string): boolean {
 
 export type AiCredentials = { apiKey: string; model: string };
 
-export function parseAiCredentials(headers: Headers): AiCredentials {
-  const apiKey = (headers.get(API_KEY_HEADER) ?? "").trim();
-  const model = (headers.get(MODEL_HEADER) ?? "").trim();
-
-  if (!apiKey) throw new Error("Add your Gemini API key in Settings to continue.");
+export function serverCredentials(): AiCredentials {
+  const apiKey = (process.env.GEMINI_API_KEY ?? "").trim();
+  if (!apiKey) throw new Error("The server is missing GEMINI_API_KEY. Set it in the host's environment.");
   if (apiKey.length > MAX_KEY_LENGTH || /[\r\n]/.test(apiKey)) {
-    throw new Error("The API key format looks invalid. Check it and try again.");
+    throw new Error("The configured GEMINI_API_KEY looks invalid.");
   }
-  if (!isSupportedModel(model)) {
-    throw new Error("Choose a supported Gemini model in Settings.");
-  }
-  return { apiKey, model };
+  const requested = (process.env.GEMINI_MODEL ?? "").trim();
+  return { apiKey, model: isSupportedModel(requested) ? requested : DEFAULT_MODEL };
 }
 
 export function safeAiError(error: unknown): string {

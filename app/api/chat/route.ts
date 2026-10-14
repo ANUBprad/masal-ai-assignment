@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { answerChat } from "@/lib/gemini";
-import { credentialsFrom, errorResponse, jsonBody, HttpError } from "@/lib/http";
+import { guard, errorResponse, jsonBody, HttpError } from "@/lib/http";
 import { validateLead } from "@/lib/validation";
 import type { ChatMessage } from "@/types/lead";
 
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const credentials = credentialsFrom(request);
+    const credentials = guard(request);
     const body = await jsonBody(request);
     let lead;
     try {
