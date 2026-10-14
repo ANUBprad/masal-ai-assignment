@@ -39,7 +39,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Set `GEMINI_API_KEY` in `.env.local`. Create a free-tier key at [Google AI Studio](https://aistudio.google.com/apikey). Optionally set `GEMINI_MODEL`; default: `gemini-2.5-flash`. Never commit `.env.local`.
+Set `GEMINI_API_KEY` in `.env.local`. Create a free-tier key at [Google AI Studio](https://aistudio.google.com/apikey). Optionally set `GEMINI_MODEL`; default: `gemini-3.8-flash`. Never commit `.env.local`.
 
 Run checks:
 
