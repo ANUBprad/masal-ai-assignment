@@ -19,13 +19,12 @@ function timelinePoints(timeline: string): number {
 export function scoreLead(input: LeadInput, analysis: LeadAnalysis | null): ScoreResult {
   let score = 0;
   const reasons: string[] = [];
-
   const timing = timelinePoints(input.timeline);
   score += timing;
   if (timing >= 24) reasons.push("Near-term buying timeline");
   else if (timing <= 5) reasons.push("Long or exploratory timeline");
 
-  if (/d/.test(input.budget) || /lakh|lac|crore|million|thousand|$|₹|inr/i.test(input.budget)) {
+  if (input.budget.trim() && !/not decided|unknown|tbd|not sure/i.test(input.budget)) {
     score += 15;
     reasons.push("Budget information provided");
   } else {
