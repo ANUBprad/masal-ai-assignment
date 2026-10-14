@@ -339,7 +339,17 @@ export async function analyzeLead(plan: ProviderKey[], lead: LeadInput): Promise
   ) {
     throw new AiFailure(MESSAGES.malformed, "malformed");
   }
-  return result;
+  // Newer fields are optional in the model output; normalise to string[] so
+  // downstream consumers always receive arrays.
+  const stringList = (value: unknown): string[] =>
+    (Array.isArray(value) ? value : []).filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20);
+  return {
+    ...result,
+    knownFacts: stringList(result.knownFacts),
+    inferences: stringList(result.inferences),
+    unknowns: stringList(result.unknowns),
+    dealRisks: stringList(result.dealRisks)
+  };
 }
 
 export async function answerChat(

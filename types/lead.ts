@@ -7,8 +7,29 @@ export const BUYING_TIMELINES = [
 ] as const;
 
 export type BuyingTimeline = (typeof BUYING_TIMELINES)[number];
-export type Priority = "Hot" | "Warm" | "Cold";
+export type Priority = "Act Now" | "Follow Up" | "Nurture";
 export type LeadStatus = "New" | "Contacted" | "Visit scheduled" | "Qualified" | "Closed";
+
+export type ScoreDimensionKey = "timeline" | "intent" | "clarity" | "budget" | "engagement";
+
+// One scored dimension of the deterministic 100-point engine. `earned` is out of
+// `max`; `evidence` lists positive signals supported by recorded lead data and
+// `missing` lists qualification gaps (so an empty `evidence` at 0 points is
+// distinguishable from genuinely unknown information).
+export interface ScoreDimension {
+  key: ScoreDimensionKey;
+  label: string;
+  earned: number;
+  max: number;
+  evidence: string[];
+  missing: string[];
+}
+
+export interface LeadScoreDetail {
+  dimensions: ScoreDimension[];
+  missing: string[];
+  summary: string;
+}
 
 export interface LeadInput {
   name: string;
@@ -28,6 +49,10 @@ export interface LeadAnalysis {
   suggestedReply: string;
   intentStrength: "Strong" | "Moderate" | "Weak";
   confidenceNote: string;
+  knownFacts?: string[];
+  inferences?: string[];
+  unknowns?: string[];
+  dealRisks?: string[];
 }
 
 export interface Lead extends LeadInput {
@@ -37,6 +62,7 @@ export interface Lead extends LeadInput {
   score: number;
   priority: Priority;
   scoreReasons: string[];
+  scoreDetail?: LeadScoreDetail;
   status: LeadStatus;
   analysis?: LeadAnalysis;
   chat: ChatMessage[];

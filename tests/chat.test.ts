@@ -42,12 +42,12 @@ async function capturedPrompt(run: () => Promise<void>): Promise<string> {
 test("the selected lead's analysis and score reach the chat prompt", async () => {
   const plan = groqPlan();
   const prompt = await capturedPrompt(async () => {
-    await answerChat(plan, lead, [], "What should I emphasize?", analysis, 92, "Hot");
+    await answerChat(plan, lead, [], "What should I emphasize?", analysis, 92, "Act Now");
   });
   assert.match(prompt, /SUMMARY_SENTINEL/);
   assert.match(prompt, /CONCERN_SENTINEL/);
   assert.match(prompt, /REPLY_SENTINEL/);
-  assert.match(prompt, /Rule-based score: 92 \(Hot\)/);
+  assert.match(prompt, /Rule-based score: 92 \(Act Now\)/);
 });
 
 test("chat works without an analysis and omits the analysis block", async () => {

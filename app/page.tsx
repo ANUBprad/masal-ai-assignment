@@ -5,20 +5,26 @@ import {
   Bot, Check, CircleAlert, CircleCheck, Copy, Flame, Inbox, Loader2,
   MessageCircle, Moon, PhoneCall, Plus, RefreshCw, Search, Send, Sparkles, Sun, Trash2, X
 } from "lucide-react";
-import type { ChatMessage, Lead, LeadInput, LeadStatus, Priority } from "@/types/lead";
+import type { ChatMessage, Lead, LeadInput, LeadScoreDetail, LeadStatus, Priority } from "@/types/lead";
 import { BUYING_TIMELINES } from "@/types/lead";
-import { scoreLead } from "@/lib/scoring";
+import { PRIORITIES, PRIORITY_BAR, PRIORITY_NOTE, PRIORITY_STYLES, scoreLead, type LeadScore } from "@/lib/scoring";
 
 const STORAGE_KEY = "masal-ai-leads-v1";
 const THEME_KEY = "masal-ai-theme";
 
 type Notice = { text: string; tone: "success" | "error" };
+type LeadSeed = Omit<Lead, "score" | "priority" | "scoreReasons" | "scoreDetail">;
 
-const PRIORITY_STYLES: Record<Priority, string> = {
-  Hot: "bg-[var(--hot-bg)] text-[var(--hot-fg)]",
-  Warm: "bg-[var(--warm-bg)] text-[var(--warm-fg)]",
-  Cold: "bg-[var(--cold-bg)] text-[var(--cold-fg)]"
-};
+function scoreDetail(score: LeadScore): LeadScoreDetail {
+  return { dimensions: score.dimensions, missing: score.missing, summary: score.summary };
+}
+// Recompute the deterministic score from recorded fields and status, so labels
+// stay consistent and legacy leads (stored with the old Hot/Warm/Cold labels)
+// are migrated on load. The score is never taken from the AI analysis.
+function withScore(lead: LeadSeed): Lead {
+  const scoring = scoreLead(lead, { status: lead.status });
+  return { ...lead, score: scoring.score, priority: scoring.priority, scoreReasons: scoring.positives, scoreDetail: scoreDetail(scoring) };
+}
 
 const COPILOT_PROMPTS = [
   "How should I open the call?",
@@ -34,13 +40,12 @@ function validateForm(input: LeadInput): Partial<Record<keyof LeadInput, string>
   if (input.message.trim().length < 5) errors.message = "Add at least 5 characters of the enquiry.";
   return errors;
 }
-const DEMO_LEADS: Lead[] = [
+const DEMO_SEED: LeadSeed[] = [
   {
     id: "demo-1", name: "Priya Sharma", location: "Whitefield, Bengaluru",
     propertyRequirement: "3 BHK apartment, gated community", budget: "₹1.2–1.5 Cr",
     timeline: "Within 30 days", message: "Hi, we're looking for a 3 BHK near Whitefield because our office is moving there next month. Budget is around 1.4 crore. We have loan pre-approval and would like to visit a few ready-to-move options this weekend.",
     createdAt: new Date(Date.now() - 1000 * 60 * 38).toISOString(), updatedAt: new Date().toISOString(),
-    score: 92, priority: "Hot", scoreReasons: ["Near-term buying timeline", "Asked about a property visit", "Mentioned financing or loan approval"],
     status: "Visit scheduled", demo: true, chat: [], analysis: {
       summary: "A motivated buyer seeking a ready-to-move 3 BHK near Whitefield ahead of an office relocation next month.",
       intent: "High intent: defined budget, financing pre-approval, and a specific visit request.",
@@ -48,7 +53,11 @@ const DEMO_LEADS: Lead[] = [
       concerns: ["Availability for the requested weekend is not confirmed", "Commute and exact preferred micro-location need clarification"],
       nextAction: "Shortlist 2–3 verified ready-to-move options and confirm a weekend visit slot.",
       suggestedReply: "Hi Priya, thanks for sharing those details. I’ll shortlist ready-to-move 3 BHK options around Whitefield within your budget. Could you share your preferred move-in date and any must-have amenities? I’ll then suggest suitable options and coordinate a visit.",
-      intentStrength: "Strong", confidenceNote: "Based on the stated budget, financing pre-approval, near-term move, and explicit visit request."
+      intentStrength: "Strong", confidenceNote: "Based on the stated budget, financing pre-approval, near-term move, and explicit visit request.",
+      knownFacts: ["Near-term move (office relocating next month)", "Budget around ₹1.4 Cr", "Loan pre-approval stated", "Wants ready-to-move 3 BHK near Whitefield", "Requested a weekend visit"],
+      inferences: ["Likely a decision-ready buyer given the near-term move and financing signal", "Gated-community preference is implied by the requirement"],
+      unknowns: ["Exact possession date", "Must-have amenities", "Preferred micro-location within Whitefield"],
+      dealRisks: ["Weekend visit slot and ready-to-move inventory are not confirmed", "No verified availability for the requested configuration"]
     }
   },
   {
@@ -56,7 +65,6 @@ const DEMO_LEADS: Lead[] = [
     propertyRequirement: "2 BHK apartment with amenities", budget: "₹75–90 L",
     timeline: "1–3 months", message: "I'm comparing a few projects in Sarjapur. Can you send floor plans and maintenance details? Still deciding whether to buy now or later.",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), updatedAt: new Date().toISOString(),
-    score: 61, priority: "Warm", scoreReasons: ["Defined buying window", "Budget provided", "Property requirement specified"],
     status: "Contacted", demo: true, chat: [], analysis: {
       summary: "A comparison-stage buyer researching 2 BHK options and recurring costs around Sarjapur Road.",
       intent: "Moderate intent: actively comparing projects but timing is not final.",
@@ -64,7 +72,11 @@ const DEMO_LEADS: Lead[] = [
       concerns: ["Purchase timing is undecided", "Total cost of ownership needs clarification"],
       nextAction: "Send verified floor plans and a transparent cost breakdown; schedule a short discovery call.",
       suggestedReply: "Hi Rahul, happy to help. I can share the available floor plans along with the maintenance and other recurring costs so you can compare options clearly. Is there a particular possession timeline or amenity that's most important to you?",
-      intentStrength: "Moderate", confidenceNote: "The lead is engaged in comparison but has not committed to a purchase date."
+      intentStrength: "Moderate", confidenceNote: "The lead is engaged in comparison but has not committed to a purchase date.",
+      knownFacts: ["Comparing a few projects around Sarjapur Road", "Budget ₹75–90 L", "Wants 2 BHK with amenities", "Asked about floor plans and maintenance"],
+      inferences: ["Likely price-sensitive and comparing total cost of ownership", "May be waiting to see options before deciding timing"],
+      unknowns: ["Whether they will buy now or later", "Possession timeline", "Which amenities matter most"],
+      dealRisks: ["Purchase timing is undecided", "Total cost of ownership has not been framed"]
     }
   },
   {
@@ -72,7 +84,6 @@ const DEMO_LEADS: Lead[] = [
     propertyRequirement: "Villa or plot, flexible", budget: "Not decided",
     timeline: "Just exploring / no rush", message: "Just starting to look around. Curious about the difference between buying a plot and a villa. No urgency at the moment.",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(), updatedAt: new Date().toISOString(),
-    score: 27, priority: "Cold", scoreReasons: ["Exploratory timeline"],
     status: "New", demo: true, chat: [], analysis: {
       summary: "An early-stage prospect exploring villa versus plot ownership in North Bengaluru with no fixed timeline.",
       intent: "Low immediate intent; education and light nurturing are more appropriate than hard selling.",
@@ -80,10 +91,15 @@ const DEMO_LEADS: Lead[] = [
       concerns: ["Budget and timeline are unknown", "Property type remains undecided"],
       nextAction: "Share a neutral comparison guide and ask permission to follow up in a few weeks.",
       suggestedReply: "Hi Ananya, happy to help you explore both options. A villa offers a more ready-to-use home, while a plot can offer more flexibility but needs additional planning. I can share a simple comparison of costs, upkeep, and timelines to help you decide at your own pace.",
-      intentStrength: "Weak", confidenceNote: "The customer explicitly described the enquiry as exploratory and low urgency."
+      intentStrength: "Weak", confidenceNote: "The customer explicitly described the enquiry as exploratory and low urgency.",
+      knownFacts: ["Early-stage research", "Interested in villa versus plot", "Location preference: North Bengaluru"],
+      inferences: ["Education-first nurturing is more appropriate than a sales push"],
+      unknowns: ["Budget", "Timeline", "Whether they will buy at all"],
+      dealRisks: ["No budget or timeline to qualify", "Property type remains undecided"]
     }
   }
 ];
+const DEMO_LEADS: Lead[] = DEMO_SEED.map(withScore);
 
 const STATUSES: LeadStatus[] = ["New", "Contacted", "Visit scheduled", "Qualified", "Closed"];
 
@@ -111,8 +127,9 @@ export default function HomePage() {
       if (raw) {
         const saved = JSON.parse(raw) as Lead[];
         if (Array.isArray(saved) && saved.length) {
-          setLeads(saved);
-          setSelectedId(saved[0].id);
+          const normalized = saved.map(withScore);
+          setLeads(normalized);
+          setSelectedId(normalized[0].id);
         }
       }
     } catch { /* Ignore invalid local browser data and use demo leads. */ }
@@ -140,11 +157,20 @@ export default function HomePage() {
     return (!query || `${lead.name} ${lead.location} ${lead.propertyRequirement}`.toLowerCase().includes(query))
       && (priorityFilter === "All" || lead.priority === priorityFilter);
   }).sort((a, b) => b.score - a.score), [leads, search, priorityFilter]);
-  const hotCount = leads.filter((lead) => lead.priority === "Hot").length;
+  const actNowCount = leads.filter((lead) => lead.priority === "Act Now").length;
   const avgScore = leads.length ? Math.round(leads.reduce((sum, lead) => sum + lead.score, 0) / leads.length) : 0;
 
   function updateLead(id: string, patch: Partial<Lead>) {
     setLeads((current) => current.map((lead) => lead.id === id ? { ...lead, ...patch, updatedAt: new Date().toISOString() } : lead));
+  }
+  // Changing status changes the engagement dimension; recompute so the score
+  // and priority stay consistent with the recorded action.
+  function setStatus(id: string, status: LeadStatus) {
+    setLeads((current) => current.map((lead) => {
+      if (lead.id !== id) return lead;
+      const scoring = scoreLead(lead, { status });
+      return { ...lead, status, score: scoring.score, priority: scoring.priority, scoreReasons: scoring.positives, scoreDetail: scoreDetail(scoring), updatedAt: new Date().toISOString() };
+    }));
   }
   async function analyze(lead: Lead) {
     setBusy("analyze"); setNotice(null);
@@ -166,12 +192,10 @@ export default function HomePage() {
     const errors = validateForm(form);
     setFormErrors(errors);
     if (Object.values(errors).some(Boolean)) return;
-    const scoring = scoreLead(form);
-    const lead: Lead = {
+    const lead: Lead = withScore({
       ...form, id: makeId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      score: scoring.score, priority: scoring.priority, scoreReasons: scoring.reasons,
       status: "New", chat: []
-    };
+    });
     setLeads((current) => [lead, ...current]);
     setSelectedId(lead.id);
     setShowForm(false);
@@ -249,7 +273,7 @@ export default function HomePage() {
           <dl className="flex items-center gap-5">
             <Stat label="Leads" value={leads.length}/>
             <div className="h-9 w-px bg-[var(--border-soft)]" aria-hidden="true"/>
-            <Stat label="High priority" value={hotCount}/>
+            <Stat label="Act now" value={actNowCount}/>
             <div className="h-9 w-px bg-[var(--border-soft)]" aria-hidden="true"/>
             <Stat label="Avg score" value={avgScore}/>
           </dl>
@@ -263,7 +287,7 @@ export default function HomePage() {
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, area, or requirement" aria-label="Search leads" className="h-10 w-full rounded-lg border border-[var(--border-input)] bg-[var(--surface-inset)] pl-9 pr-3 text-sm outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]"/>
               </div>
               <div className="mt-3 inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-inset)] p-0.5" role="group" aria-label="Filter by priority">
-                {(["All", "Hot", "Warm", "Cold"] as const).map((item) => {
+                {(["All", ...PRIORITIES] as const).map((item) => {
                   const active = priorityFilter === item;
                   return <button key={item} onClick={() => setPriorityFilter(item)} aria-pressed={active} className={`inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-xs font-semibold transition ${active ? "border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-sm" : "border border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"}`}>{item}{item !== "All" && <span className={`tabular-nums ${active ? "text-[var(--text-faint)]" : "text-[var(--text-faint)]"}`}>{leads.filter((lead) => lead.priority === item).length}</span>}</button>;
                 })}
@@ -305,7 +329,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <label htmlFor="lead-status" className="sr-only">Lead status</label>
-                  <select id="lead-status" value={selected.status} onChange={(e) => updateLead(selected.id, { status: e.target.value as LeadStatus })} className="h-9 rounded-lg border border-[var(--border-input)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--text-soft)] outline-none transition focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]">{STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+                  <select id="lead-status" value={selected.status} onChange={(e) => setStatus(selected.id, e.target.value as LeadStatus)} className="h-9 rounded-lg border border-[var(--border-input)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--text-soft)] outline-none transition focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]">{STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
                   <button onClick={() => removeLead(selected.id)} aria-label={`Delete ${selected.name}`} title="Delete lead" className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--text-faint)] transition hover:border-[var(--danger-fg)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-fg)]"><Trash2 size={15}/></button>
                 </div>
               </div>
@@ -319,6 +343,42 @@ export default function HomePage() {
                 <p className="mt-2 border-l-2 border-[var(--border-input)] pl-3 text-sm leading-6 text-[var(--text-soft)]">{selected.message}</p>
               </div>
             </section>
+
+            {selected.scoreDetail && <section className="panel p-5" aria-label="Sales priority">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] text-center leading-none">
+                    <div><span className="text-lg font-bold tabular-nums">{selected.score}</span><span className="text-xs font-medium text-[var(--text-faint)]">/100</span></div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><h2 className="text-base font-bold">Sales priority</h2><PriorityBadge priority={selected.priority}/></div>
+                    <p className="mt-1 max-w-xl text-sm leading-6 text-[var(--text-muted)]">{selected.scoreDetail.summary}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3.5 border-t border-[var(--border-soft)] pt-4">
+                {selected.scoreDetail.dimensions.map((dim) => <div key={dim.key}>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-[var(--text-soft)]">{dim.label}</span>
+                    <span className="shrink-0 tabular-nums text-[var(--text-muted)]"><span className="font-semibold text-[var(--text)]">{dim.earned}</span>/{dim.max}</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--border-soft)]" role="img" aria-label={`${dim.label}: ${dim.earned} of ${dim.max}`}>
+                    <div className="h-full rounded-full" style={{ width: `${dim.max ? (dim.earned / dim.max) * 100 : 0}%`, background: PRIORITY_BAR[selected.priority] }}/>
+                  </div>
+                  {dim.evidence.length > 0 && <p className="mt-1 text-xs leading-5 text-[var(--text-faint)]">{dim.evidence.join(" · ")}</p>}
+                </div>)}
+              </div>
+
+              <div className="mt-4 grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-2">
+                <BulletSection title="Positive signals" items={selected.scoreReasons}/>
+                <div>
+                  <h4 className="eyebrow">Missing information</h4>
+                  {selected.scoreDetail.missing.length ? <ul className="mt-2 space-y-1.5">{selected.scoreDetail.missing.map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-sm leading-6 text-[var(--text-muted)]"><CircleAlert size={14} className="mt-1 shrink-0 text-[var(--warm-fg)]"/><span>{item}</span></li>)}</ul> : <p className="mt-2 text-sm text-[var(--text-faint)]">No critical qualification gaps recorded.</p>}
+                </div>
+              </div>
+              <p className="mt-4 border-t border-[var(--border-soft)] pt-3 text-xs leading-5 text-[var(--text-faint)]">{PRIORITY_NOTE}</p>
+            </section>}
 
             <section className="panel p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -346,11 +406,15 @@ export default function HomePage() {
                     <p className="mt-1.5 text-xs leading-5 text-[var(--text-faint)]">{selected.analysis.confidenceNote}</p>
                   </div>
 
-                  {(selected.analysis.requirements.length > 0 || selected.analysis.concerns.length > 0) && <div className="grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-2"><BulletSection title="Requirements" items={selected.analysis.requirements}/><BulletSection title="Concerns" items={selected.analysis.concerns}/></div>}
+                  <div className="grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-2">
+                    <BulletSection title="Known facts" items={selected.analysis.knownFacts?.length ? selected.analysis.knownFacts : selected.analysis.requirements}/>
+                    <BulletSection title="Inferences" items={selected.analysis.inferences ?? []}/>
+                    <BulletSection title="Unknowns to clarify" items={selected.analysis.unknowns ?? []}/>
+                    <BulletSection title="Deal risks" items={selected.analysis.dealRisks?.length ? selected.analysis.dealRisks : selected.analysis.concerns}/>
+                  </div>
 
                   <div className="flex flex-wrap items-center gap-3 border-t border-[var(--border-soft)] pt-4">
                     <button onClick={() => document.getElementById("copilot")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-input)] px-3.5 py-2 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]"><MessageCircle size={14}/> Ask about this lead</button>
-                    {selected.scoreReasons.length > 0 && <p className="text-xs leading-5 text-[var(--text-faint)]">Signals · {selected.scoreReasons.slice(0, 4).join(" · ")}</p>}
                   </div>
                 </div> : <div className="mt-4 flex flex-col items-start gap-3 rounded-lg border border-dashed border-[var(--border-input)] bg-[var(--surface-muted)] p-5"><div className="flex items-center gap-2 text-sm font-semibold"><Sparkles size={15} className="text-[var(--brand-text)]"/>No analysis yet</div><p className="text-sm leading-6 text-[var(--text-muted)]">Run the analysis to get a summary, a recommended next action, and a suggested reply for this lead.</p><button disabled={!!busy} onClick={() => void analyze(selected)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-3.5 py-2 text-xs font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)] disabled:opacity-60"><Sparkles size={14}/>Run analysis</button></div>}
             </section>
@@ -415,5 +479,5 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 const inputClass = "mt-2 w-full rounded-lg border border-[var(--border-input)] bg-[var(--surface-inset)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]";
 function Field({ label, htmlFor, error, children }: { label: string; htmlFor: string; error?: string; children: React.ReactNode }) { return <div><label htmlFor={htmlFor} className="field-label">{label}</label>{children}{error && <p className="mt-1.5 text-xs text-[var(--danger-fg)]">{error}</p>}</div>; }
-function PriorityBadge({ priority }: { priority: Priority }) { return <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[priority]}`}>{priority === "Hot" && <Flame size={11}/>}{priority}</span>; }
+function PriorityBadge({ priority }: { priority: Priority }) { return <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[priority]}`}>{priority === "Act Now" && <Flame size={11}/>}{priority}</span>; }
 function BulletSection({ title, items }: { title: string; items: string[] }) { return <div><h4 className="eyebrow">{title}</h4>{items.length ? <ul className="mt-2 space-y-1.5">{items.map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-sm leading-6 text-[var(--text-soft)]"><Check size={14} className="mt-1 shrink-0 text-[var(--positive-strong)]"/><span>{item}</span></li>)}</ul> : <p className="mt-2 text-sm text-[var(--text-faint)]">None identified.</p>}</div>; }

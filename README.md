@@ -11,7 +11,7 @@ Masal AI helps a salesperson triage inbound leads quickly:
 - Capture the enquiry in a small, structured form.
 - Get an AI-generated assessment — summary, intent, requirements, objections, next action, and a suggested reply — grounded in the lead's own details.
 - Ask follow-up questions in a chat that is grounded in both the lead's details and its existing AI analysis.
-- Rank and filter a pipeline of leads with a transparent, rule-based score (Hot / Warm / Cold).
+- Rank and filter a pipeline of leads with a transparent, deterministic 100-point score (Act Now / Follow Up / Nurture) and a visible breakdown.
 - Generate a short call brief before picking up the phone.
 - Switch between light and dark themes (light by default; the choice is remembered in the browser).
 
@@ -38,12 +38,28 @@ The five assignment requirements map to concrete, implemented behaviour:
 | Requirement | What the application does | Where |
 | --- | --- | --- |
 | **1. Lead intake** | Captures name, location, property requirement, budget, buying timeline (from a fixed list), and a free-text customer message. | `app/page.tsx` (form), `types/lead.ts`, `lib/validation.ts` |
-| **2. Real AI-based lead analysis** | Each lead can be analysed by a server-side call to an external LLM provider (Groq by default), returning a summary, customer intent, key requirements, objections/concerns, a recommended next action, and a suggested reply. | `app/api/analyze/route.ts`, `lib/providers.ts`, `lib/prompts.ts` |
+| **2. Real AI-based lead analysis** | Each lead can be analysed by a server-side call to an external LLM provider (Groq by default), returning a summary, customer intent, key requirements, objections/concerns, separated known facts / inferences / unknowns / deal risks, a recommended next action, and a suggested reply. | `app/api/analyze/route.ts`, `lib/providers.ts`, `lib/prompts.ts` |
 | **3. Contextual conversational interface** | A per-lead copilot that answers the salesperson's follow-up questions using the selected lead's details, its current AI analysis, and that lead's conversation history. | `app/api/chat/route.ts`, `lib/providers.ts` |
-| **4. Multiple leads and prioritization** | Leads coexist in a list, each with its own analysis and chat. A deterministic score plus Hot/Warm/Cold grouping, search, and filtering rank the pipeline. | `app/page.tsx`, `lib/scoring.ts` |
+| **4. Multiple leads and prioritization** | Leads coexist in a list, each with its own analysis and chat. A deterministic 100-point score plus Act Now / Follow Up / Nurture grouping, search, and filtering rank the pipeline. | `app/page.tsx`, `lib/scoring.ts` |
 | **5. Scan-friendly presentation** | A dedicated "Lead intelligence" panel surfaces the AI outputs as short, labelled blocks; the list shows score, priority, location, and timeline at a glance. | `app/page.tsx` |
 
 The five requirements are covered by the shipped code above. Live AI responses depend on a configured server key and network access (see [Environment variables](#environment-variables)).
+
+## Lead scoring (100 points)
+
+The score is deterministic and calculated in `lib/scoring.ts` only — never by the LLM. The same lead always produces the same score and breakdown, and missing information is reported rather than treated as a positive.
+
+| Dimension | Max | Rule (summary) |
+| --- | ---: | --- |
+| Buying timeline | 25 | `Immediately`/`Within 30 days` 25 · `1–3 months` 14 · `3–6 months` 7 · exploring 0 |
+| Purchase intent | 25 | ready-to-purchase 25 · comparing/shortlisting 18 · general interest 10 · browsing 3 · no evidence 0 |
+| Requirement clarity | 20 | 5 each for location, property type/configuration, budget specified, and stated preferences/constraints |
+| Budget readiness | 20 | up to 10 for a specific budget figure + up to 10 for explicit financing readiness |
+| Engagement & commitment | 10 | confirmed next step / `Visit scheduled`/`Qualified` 10 · concrete next-step request 5 · none 0 |
+
+Sales priority: **Act Now** 80–100 · **Follow Up** 50–79 · **Nurture** 0–49. Each lead's detail panel shows the score out of 100, the label, the five-dimension breakdown with earned/max, the positive signals, and the missing qualification information. These are provisional prioritisation labels, not qualification statuses or a probability of closing.
+
+Known limitation: the intake form's fixed timeline options do not expose a distinct 31–60 day choice, so `1–3 months` is scored at the conservative 61–90 day bucket and the 20-point timeline bucket is currently unreachable through the UI.
 
 ## Additional feature: Call Brief
 
@@ -168,7 +184,7 @@ No secret belongs in `next.config.ts`, the repository, or any `NEXT_PUBLIC_*` va
 
 - **Probabilistic output.** Model responses are generated, not deterministic. They can be incomplete or wrong and should always be reviewed by the salesperson before acting or sending a reply. The suggested reply is a draft, not a commitment.
 - **Grounding.** Analysis is generated only from the six intake fields. Chat is generated from those fields, the lead's current analysis, and the recent conversation. The prompts instruct the model not to invent availability, prices, or preferences, but this is a guideline, not a guarantee.
-- **Score is a heuristic.** The Hot/Warm/Cold ranking is a transparent rule-based score (`lib/scoring.ts`), independent of the AI, and is explicitly not a prediction of conversion.
+- **Score is a heuristic.** The Act Now / Follow Up / Nurture ranking is a transparent, deterministic 100-point score (`lib/scoring.ts`), independent of the AI, and is explicitly not a prediction of conversion or a qualification status. It is computed only from recorded lead data and the lead's status.
 - **Storage.** Leads, analyses, chat, and call briefs are stored in the browser's `localStorage` only (key `masal-ai-leads-v1`). There is no server database. Data is per-browser and per-device, is lost if site data is cleared, and is not shared between users.
 - **Rate limiting.** AI routes are limited per client IP (see below); the limit is in memory and per server instance, so it is not a global cap.
 - **Deployment.** The app targets a Node.js-capable host (Vercel is the documented path). Deployment is not yet verified in this repository — the live URL is a placeholder.
@@ -190,7 +206,7 @@ npm run lint      # ESLint
 npm run build     # Next.js production build
 ```
 
-The tests cover the deterministic and safety-critical pieces: lead validation and analysis validation, the rule-based scoring thresholds, the request guard (rate-limit `429`, no-provider `503`, and the returned provider plan), the rate limiter (window reset, per-IP isolation, IP parsing), provider routing and failover (default/alternate primary, model allow-list, key rotation, cooldown, `429`/`401`/`5xx` handling, safe all-fail), and that a lead's analysis reaches the chat prompt. Tests do not call a real provider API — live AI calls require configured keys and network access. CI runs the same four commands on Node 22 (`.github/workflows/ci.yml`).
+The tests cover the deterministic and safety-critical pieces: lead validation and analysis validation, the deterministic 100-point scoring engine (per-dimension rules, missing-data handling, engagement evidence, priority boundaries, determinism, and 0–100 invariants), the request guard (rate-limit `429`, no-provider `503`, and the returned provider plan), the rate limiter (window reset, per-IP isolation, IP parsing), provider routing and failover (default/alternate primary, model allow-list, key rotation, cooldown, `429`/`401`/`5xx` handling, safe all-fail), and that a lead's analysis reaches the chat prompt. Tests do not call a real provider API — live AI calls require configured keys and network access. CI runs the same four commands on Node 22 (`.github/workflows/ci.yml`).
 
 ## AI usage disclosure
 
@@ -205,7 +221,7 @@ The tests cover the deterministic and safety-critical pieces: lead validation an
 - [x] Lead intake form with the six required fields.
 - [x] Real AI-based lead analysis (server-side provider call).
 - [x] Contextual, per-lead conversational copilot.
-- [x] Multiple leads with score and Hot/Warm/Cold prioritization.
+- [x] Multiple leads with a deterministic 100-point score and Act Now / Follow Up / Nurture prioritization.
 - [x] Scan-friendly presentation of AI outputs.
 - [x] Additional Call Brief feature.
 - [x] Light/dark theme toggle.

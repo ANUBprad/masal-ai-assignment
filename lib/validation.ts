@@ -44,7 +44,11 @@ export function validateAnalysis(value: unknown): LeadAnalysis | undefined {
     intentStrength: ["Strong", "Moderate", "Weak"].includes(String(record.intentStrength))
       ? (record.intentStrength as LeadAnalysis["intentStrength"])
       : "Weak",
-    confidenceNote: text("confidenceNote")
+    confidenceNote: text("confidenceNote"),
+    knownFacts: list("knownFacts"),
+    inferences: list("inferences"),
+    unknowns: list("unknowns"),
+    dealRisks: list("dealRisks")
   };
   const hasContent = Boolean(analysis.summary || analysis.intent || analysis.nextAction ||
     analysis.suggestedReply || analysis.requirements.length || analysis.concerns.length);

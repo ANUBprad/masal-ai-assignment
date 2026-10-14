@@ -96,10 +96,10 @@ Reading the diagram: the browser is the untrusted input source and never holds c
 | `lib/http.ts` | `errorResponse()` (status mapping + safe message) and `jsonBody()` (JSON-object parsing). Re-exports `guard`/`HttpError`. |
 | `lib/rate-limit.ts` | In-memory per-IP sliding-window limiter, `clientIp()` extraction, coarse quota warning. |
 | `lib/validation.ts` | `validateLead` (field shape, lengths, timeline allow-list), `validateAnalysis` (analysis shape + limits, returns `undefined` when invalid), `readJsonObject` (used by tests). |
-| `lib/scoring.ts` | `scoreLead` and `priorityForScore`: deterministic score and Hot/Warm/Cold mapping. |
+| `lib/scoring.ts` | `scoreLead` (deterministic 100-point engine with per-dimension breakdown) and `priorityForScore`: sales-priority labels (`Act Now`/`Follow Up`/`Nurture`), thresholds, and display styles. |
 | `lib/prompts.ts` | `leadContext`, `analysisContext`, and the three system prompts. |
 | `lib/providers.ts` | The provider layer: env key/model resolution with numbered-key rotation, an ordered provider plan, cooldown/failover (`attemptWithFailover`), the Groq and Gemini `fetch` transports (45s abort), `analyzeLead`/`answerChat`/`generateCallBrief`, `AiFailure`, and `safeAiError`. |
-| `types/lead.ts` | Shared contracts: `LeadInput`, `LeadAnalysis`, `Lead`, `ChatMessage`, `CallBrief`, `Priority`, `LeadStatus`, `BUYING_TIMELINES`. |
+| `types/lead.ts` | Shared contracts: `LeadInput`, `LeadAnalysis`, `Lead`, `ChatMessage`, `CallBrief`, `Priority`, `LeadStatus`, `BUYING_TIMELINES`, `ScoreDimension`, `LeadScoreDetail`. |
 
 Separation of concerns: UI and state live in `app/page.tsx`; domain types in `types/`; prompt text in `lib/prompts.ts`; provider transport, key resolution, and failover in `lib/providers.ts`; request handling in `lib/http.ts` and `lib/guard.ts`; input policy in `lib/validation.ts`. This keeps the "what to ask" (prompts), "how to call and who to blame on failure" (providers), "who may call" (guard/rate-limit), and "is it valid" (validation) independent.
 
@@ -118,9 +118,11 @@ Defined in `types/lead.ts`.
 | `timeline` | `BuyingTimeline` | One of `BUYING_TIMELINES` (allow-listed). |
 | `message` | string | 5–10,000 chars. |
 
-**Analysis (`LeadAnalysis`)** — produced by `/api/analyze`: `summary`, `intent`, `requirements[]`, `concerns[]`, `nextAction`, `suggestedReply`, `intentStrength` (`Strong`/`Moderate`/`Weak`), `confidenceNote`.
+**Analysis (`LeadAnalysis`)** — produced by `/api/analyze`: `summary`, `intent`, `requirements[]`, `concerns[]`, `nextAction`, `suggestedReply`, `intentStrength` (`Strong`/`Moderate`/`Weak`), `confidenceNote`, and the separation fields `knownFacts[]`, `inferences[]`, `unknowns[]`, `dealRisks[]`. The model separates confirmed facts from inferences and unknowns and does not produce a numeric score.
 
-**Lead (`Lead`)** — a `LeadInput` plus `id`, `createdAt`, `updatedAt`, `score` (number), `priority` (`Hot`/`Warm`/`Cold`), `scoreReasons[]`, `status` (`New`/`Contacted`/`Visit scheduled`/`Qualified`/`Closed`), `analysis` (a `LeadAnalysis`), `chat` (`ChatMessage[]`), and optional `callBrief` (`CallBrief`).
+**Lead (`Lead`)** — a `LeadInput` plus `id`, `createdAt`, `updatedAt`, `score` (0–100, computed by `lib/scoring.ts`, never by the LLM), `priority` (`Act Now`/`Follow Up`/`Nurture`), `scoreReasons[]` (positive signals), optional `scoreDetail` (`{ dimensions[], missing[], summary }` — the deterministic breakdown), `status` (`New`/`Contacted`/`Visit scheduled`/`Qualified`/`Closed`), `analysis` (a `LeadAnalysis`), `chat` (`ChatMessage[]`), and optional `callBrief` (`CallBrief`).
+
+**Deterministic score (`lib/scoring.ts`).** `scoreLead(input, { status })` returns a 0–100 score, a priority label, and five `ScoreDimension`s whose maxima sum to 100: buying timeline (25), purchase intent (25), requirement clarity (20), budget readiness (20), engagement & commitment (10). Each dimension reports `earned`/`max`, evidence (positive signals), and missing information, so an unknown is distinguishable from a zero. Priority: `Act Now` ≥80, `Follow Up` 50–79, `Nurture` <50. The score is recomputed on create, on load (migrating legacy labels), and when the lead status changes (which affects the engagement dimension). The LLM may interpret intent but never calculates or overrides the score.
 
 **Chat (`ChatMessage`)** — `id`, `role` (`user`/`assistant`), `content`, `createdAt`.
 
@@ -301,7 +303,7 @@ Tests use Node's built-in runner with `--experimental-strip-types` (`npm test`),
 | File | Covers |
 | --- | --- |
 | `tests/validation.test.ts` | `validateLead` (valid lead, invalid timeline), `readJsonObject`, and `validateAnalysis` (normalisation + length limits; safe rejection of missing/malformed input). |
-| `tests/scoring.test.ts` | `scoreLead` behaviour for near-term vs. exploratory leads and `priorityForScore` thresholds. |
+| `tests/scoring.test.ts` | `scoreLead` deterministic scoring: each dimension's rules, missing-data handling, flexible budgets, engagement (none vs confirmed visit), priority boundaries (0/49/50/79/80/100), determinism, breakdown/evidence, 0–100 invariants, and the realistic Rahul lead. |
 | `tests/rate-limit.test.ts` | Burst-then-block, per-IP isolation, window reset (with mocked timers), and `clientIp` parsing. |
 | `tests/http.test.ts` | `guard`: `429` when the IP is over the limit, `503` when no provider key is configured, and that it returns the provider plan. |
 | `tests/providers.test.ts` | Provider routing and failover with a stubbed `fetch`: Groq is primary by default, `AI_PROVIDER=gemini` flips it, model allow-list/fallback, blank keys ignored, multi-key rotation, rate-limited key cooldown and skip, `429` → secondary provider, `401/403` bounded (no endless retry), `5xx` bounded, all-fail yields a safe error (never fabricated content), and transient retry happens once per option. |
@@ -316,7 +318,7 @@ Unit tests never call a real provider API. `npm run typecheck` (`tsc --noEmit`),
 - **`localStorage` instead of a database.** No provisioning, but single-browser, non-synced, non-durable persistence.
 - **In-memory rate limiting.** No dependency, but per-instance and non-durable — not a global cap.
 - **`fetch` instead of provider SDKs.** A small, explicit integration with per-request keys shared across both providers, but no SDK-level retries/streaming.
-- **Rule-based score alongside the LLM.** Stable, testable ranking, but intentionally shallow keyword/timeline heuristics rather than a learned model.
+- **Deterministic score alongside the LLM.** Stable, testable ranking from explicit rules (keyword/timeline/field heuristics) applied to recorded data, with a visible per-dimension breakdown — not a learned model, and not the LLM's judgement. A high score is a prioritisation hint, not proof the lead is sales-qualified or likely to close.
 - **Client-supplied analysis context.** The chat accepts the lead's analysis from the client for grounding; the server validates its shape but cannot prove it originated from a prior server call. It is a grounding aid, not a trust source.
 - **CSS-variable theming.** Light/dark is driven by a `:root`/`.dark` token set and a `class` strategy on `<html>`, toggled client-side with `localStorage`; there is no server-known theme, so the initial class is applied by a small inline script to avoid a flash.
 - **No auth/tenancy/audit.** Suitable for a time-boxed demo; not for real customer data.
