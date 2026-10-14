@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { answerChat } from "@/lib/gemini";
+import { answerChat } from "@/lib/providers";
 import { guard, errorResponse, jsonBody, HttpError } from "@/lib/http";
 import { validateAnalysis, validateLead } from "@/lib/validation";
 import type { ChatMessage } from "@/types/lead";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const credentials = guard(request);
+    const plan = guard(request);
     const body = await jsonBody(request);
     let lead;
     try {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const score = typeof source.score === "number" && Number.isFinite(source.score) ? source.score : undefined;
     const priority = source.priority === "Hot" || source.priority === "Warm" || source.priority === "Cold"
       ? source.priority : undefined;
-    const answer = await answerChat(credentials, lead, history, body.question.trim(), analysis, score, priority);
+    const answer = await answerChat(plan, lead, history, body.question.trim(), analysis, score, priority);
     return NextResponse.json({ answer }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);

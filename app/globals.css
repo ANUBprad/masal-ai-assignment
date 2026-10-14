@@ -3,9 +3,98 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; --ink:#14251d; --muted:#718078; --line:#e5eae5; --green:#1d5d43; --lime:#d7f36a; }
+:root {
+  color-scheme: light;
+  --bg: #f6f8f5;
+  --surface: #ffffff;
+  --surface-muted: #f8faf7;
+  --surface-inset: #fbfcfa;
+  --accent-soft: #e9f3e4;
+  --hover: #f4f7f2;
+  --text: #14251d;
+  --text-soft: #536057;
+  --text-muted: #69766d;
+  --text-faint: #87938a;
+  --border: #e5eae5;
+  --border-soft: #edf0ec;
+  --border-input: #dfe6dd;
+  --border-strong: #9bb59c;
+  --brand: #1d5d43;
+  --brand-strong: #164a35;
+  --brand-text: #1d5d43;
+  --on-brand: #ffffff;
+  --ink-solid: #14251d;
+  --on-ink: #ffffff;
+  --on-lime: #14251d;
+  --lime: #d7f36a;
+  --positive: #52725a;
+  --positive-strong: #4e8a56;
+  --hot-fg: #c55e32;
+  --hot-bg: #fff0e8;
+  --hot-bar: #e88352;
+  --warm-fg: #9b7620;
+  --warm-bg: #fff7df;
+  --warm-bar: #e3bb4d;
+  --cold-fg: #718078;
+  --cold-bg: #edf0ed;
+  --cold-bar: #aeb8af;
+  --danger-fg: #b14b32;
+  --danger-bg: #fff1ed;
+  --overlay-bg: rgba(16, 33, 25, .4);
+  --header-bg: rgba(255, 255, 255, .9);
+  --focus-ring: rgba(29, 93, 67, .07);
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #0e1512;
+  --surface: #161f1a;
+  --surface-muted: #1b2621;
+  --surface-inset: #1e2b24;
+  --accent-soft: #1f3328;
+  --hover: #223029;
+  --text: #e8efe9;
+  --text-soft: #b6c3ba;
+  --text-muted: #93a29a;
+  --text-faint: #7c8b83;
+  --border: #2a3830;
+  --border-soft: #24312a;
+  --border-input: #314036;
+  --border-strong: #3f6b52;
+  --brand: #2f7d5c;
+  --brand-strong: #3f9d76;
+  --brand-text: #7fd0a4;
+  --on-brand: #ffffff;
+  --ink-solid: #26332c;
+  --on-ink: #eef4ef;
+  --on-lime: #14251d;
+  --lime: #d7f36a;
+  --positive: #7fc98f;
+  --positive-strong: #8ad39a;
+  --hot-fg: #f0a081;
+  --hot-bg: #3a2419;
+  --hot-bar: #e88352;
+  --warm-fg: #e0c06a;
+  --warm-bg: #3a3115;
+  --warm-bar: #e3bb4d;
+  --cold-fg: #aab4ac;
+  --cold-bg: #242c26;
+  --cold-bar: #aeb8af;
+  --danger-fg: #f0a08c;
+  --danger-bg: #3a201a;
+  --overlay-bg: rgba(5, 10, 7, .6);
+  --header-bg: rgba(22, 31, 26, .9);
+  --focus-ring: rgba(127, 208, 164, .2);
+}
+
 * { box-sizing: border-box; }
-body { margin:0; background:#f6f8f5; color:var(--ink); font-family:"DM Sans",system-ui,sans-serif; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "DM Sans", system-ui, sans-serif;
+  transition: background-color .2s ease, color .2s ease;
+}
 h1,h2,h3,h4 { font-family:"Manrope","DM Sans",sans-serif; }
 button,input,textarea,select { font:inherit; }
 button { cursor:pointer; }

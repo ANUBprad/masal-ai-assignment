@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzeLead } from "@/lib/gemini";
+import { analyzeLead } from "@/lib/providers";
 import { guard, errorResponse, jsonBody, HttpError } from "@/lib/http";
 import { validateLead } from "@/lib/validation";
 
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const credentials = guard(request);
+    const plan = guard(request);
     const body = await jsonBody(request);
     let lead;
     try {
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     } catch (error) {
       throw new HttpError(error instanceof Error ? error.message : "Lead details are invalid.", 400);
     }
-    const analysis = await analyzeLead(credentials, lead);
+    const analysis = await analyzeLead(plan, lead);
     return NextResponse.json({ analysis }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);

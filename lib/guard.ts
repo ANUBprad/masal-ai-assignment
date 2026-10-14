@@ -1,4 +1,4 @@
-import { serverCredentials } from "./ai.ts";
+import { providerPlan, type ProviderKey } from "./providers.ts";
 import { allowRequest, clientIp } from "./rate-limit.ts";
 
 export class HttpError extends Error {
@@ -9,13 +9,13 @@ export class HttpError extends Error {
   }
 }
 
-export function guard(request: Request) {
+export function guard(request: Request): ProviderKey[] {
   if (!allowRequest(clientIp(request))) {
     throw new HttpError("Too many requests. Please wait a few minutes and try again.", 429);
   }
-  try {
-    return serverCredentials();
-  } catch (error) {
-    throw new HttpError(error instanceof Error ? error.message : "AI is not configured.", 503);
+  const plan = providerPlan();
+  if (!plan.length) {
+    throw new HttpError("AI is not configured. Add a provider API key on the server.", 503);
   }
+  return plan;
 }

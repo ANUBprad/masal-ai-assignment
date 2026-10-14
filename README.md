@@ -1,34 +1,133 @@
 # Masal AI — Real-estate Lead Intelligence
 
-A Next.js application for real-estate salespeople to understand inbound enquiries, prioritize leads, prepare for calls, and draft context-aware follow-ups.
+An AI sales copilot that turns a raw property enquiry into a prioritised, explained lead with a recommended next action and a ready-to-send reply.
 
-## Features
+## Product pitch
 
-- **Lead intake:** capture name, location, property requirement, budget, buying timeline, and customer message.
-- **AI lead analysis:** summary, intent, requirements, concerns, recommended next action, and a suggested reply.
-- **Prioritization:** transparent rule-based score with Hot / Warm / Cold grouping.
-- **Sales copilot:** ask follow-up questions grounded in the selected lead's context.
-- **Call brief (the invented feature):** generate a call objective, talking points, discovery questions, watch-outs, and an opening line. This is the extra feature added on top of the required core workflow (lead intake, AI analysis, conversational copilot, lead list & prioritization, clear display).
-- **Browser persistence:** leads are stored locally in this browser. Demo leads are included on first run.
-- **No-setup AI:** the deployed app reads a server-side Gemini key from the `GEMINI_API_KEY` environment variable, so reviewers can open it and test without entering anything.
+Real-estate sales teams receive enquiries that are noisy, incomplete, and hard to compare. A promising buyer and a curious browser can arrive in the same inbox, and the time-sensitive signals (budget, timeline, financing, a request to visit) are buried in free text. Reps lose hours re-reading messages and guessing who to call first.
 
-## Requirements
+Masal AI helps a salesperson triage inbound leads quickly:
 
-- Node.js 22.6+ (Node.js 22 LTS recommended). The test runner uses Node's built-in TypeScript stripping (`--experimental-strip-types`, added in Node 22.6), so `npm test` will not run on older releases.
-- npm
-- A Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey) set as the `GEMINI_API_KEY` environment variable (see below).
+- Capture the enquiry in a small, structured form.
+- Get an AI-generated assessment — summary, intent, requirements, objections, next action, and a suggested reply — grounded in the lead's own details.
+- Ask follow-up questions in a chat that is grounded in both the lead's details and its existing AI analysis.
+- Rank and filter a pipeline of leads with a transparent, rule-based score (Hot / Warm / Cold).
+- Generate a short call brief before picking up the phone.
+- Switch between light and dark themes (light by default; the choice is remembered in the browser).
 
-## Run locally
+The product is a single-page Next.js application with server-side API routes. It is a focused demo, not a production system — see [Limitations](#ai-behaviour-and-limitations) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Demo and submission
+
+- **Live application URL:** `TODO — replace with the deployed URL` (placeholder until deployment is confirmed).
+- **Demo video:** `TODO — add a link or upload the walkthrough here`. Keep the demo **under three minutes**: add a lead, run the analysis, ask one follow-up in the copilot, switch leads, and generate a call brief. *(No video link is present in this repository yet — this section is retained as a placeholder.)*
+- **Public repository:** https://github.com/ANUBprad/masal-ai-assignment
+
+## Problem statement and target user
+
+**Target user:** an inside-sales or field salesperson at a residential real-estate brokerage who handles many inbound enquiries per day and needs to decide, fast, who to contact and what to say.
+
+**Problem:** qualifying a lead by hand is slow and inconsistent. The signals that matter are expressed in natural language, and comparing leads against each other is hard without a shared summary.
+
+**Approach:** keep capture lightweight, use an LLM for the language-heavy reasoning (summary, intent, objections, next action, suggested reply), and pair it with a deterministic, explainable score so ranking is stable and inspectable rather than a black box.
+
+## Core features
+
+The five assignment requirements map to concrete, implemented behaviour:
+
+| Requirement | What the application does | Where |
+| --- | --- | --- |
+| **1. Lead intake** | Captures name, location, property requirement, budget, buying timeline (from a fixed list), and a free-text customer message. | `app/page.tsx` (form), `types/lead.ts`, `lib/validation.ts` |
+| **2. Real AI-based lead analysis** | Each lead can be analysed by a server-side call to an external LLM provider (Groq by default), returning a summary, customer intent, key requirements, objections/concerns, a recommended next action, and a suggested reply. | `app/api/analyze/route.ts`, `lib/providers.ts`, `lib/prompts.ts` |
+| **3. Contextual conversational interface** | A per-lead copilot that answers the salesperson's follow-up questions using the selected lead's details, its current AI analysis, and that lead's conversation history. | `app/api/chat/route.ts`, `lib/providers.ts` |
+| **4. Multiple leads and prioritization** | Leads coexist in a list, each with its own analysis and chat. A deterministic score plus Hot/Warm/Cold grouping, search, and filtering rank the pipeline. | `app/page.tsx`, `lib/scoring.ts` |
+| **5. Scan-friendly presentation** | A dedicated "Lead intelligence" panel surfaces the AI outputs as short, labelled blocks; the list shows score, priority, location, and timeline at a glance. | `app/page.tsx` |
+
+The five requirements are covered by the shipped code above. Live AI responses depend on a configured server key and network access (see [Environment variables](#environment-variables)).
+
+## Additional feature: Call Brief
+
+Call Brief is the chosen extra feature (the core workflow above is the assignment's required scope). Before a call, the salesperson generates a compact brief from the same lead context:
+
+- **Objective** — the goal of the call.
+- **Opening line** — a natural way to start.
+- **Talking points** — what to cover.
+- **Questions to ask** — discovery prompts.
+- **Watch out for** — risks or unknowns to handle carefully.
+
+Verified behaviour: the brief is produced by a separate server route (`app/api/call-brief/route.ts`) calling the same provider layer with a dedicated prompt (`lib/prompts.ts`), its JSON shape is validated before use, and it is displayed per lead and can be copied. It is generated on demand, not automatically.
+
+## Typical user workflow
+
+1. **Receive an enquiry** and click **Add new lead**.
+2. **Capture the six fields** (name, location, property requirement, budget, timeline, message).
+3. The app stores the lead, gives it an initial rule-based score, and **runs the AI analysis** automatically; it can be **refreshed** at any time.
+4. **Read the assessment** — summary, intent, requirements, objections, recommended next action, suggested reply.
+5. **Ask the copilot** a follow-up (for example, "how should I handle the pricing objection?"); answers use the lead's details and its existing analysis.
+6. **Prepare for the call** with a generated call brief.
+7. **Triage the pipeline** — sort/filter by priority and score, set a lead status (New → Contacted → Visit scheduled → Qualified → Closed), and remove leads that are no longer relevant.
+8. **Switch to another lead** — each lead keeps its own analysis and chat.
+
+## Technology stack
+
+Derived from `package.json` and configuration files:
+
+- **Framework:** Next.js 15 (App Router), React 19.
+- **Language:** TypeScript 5.
+- **Styling:** Tailwind CSS 3 with PostCSS and Autoprefixer.
+- **Icons:** lucide-react.
+- **AI provider:** Groq (OpenAI-compatible `api.groq.com`) by default, with optional multi-key rotation and Google Gemini (`generativelanguage.googleapis.com`) as a failover, called directly with `fetch` — no SDK.
+- **Linting:** ESLint 9 with `eslint-config-next`.
+- **Tests:** Node.js built-in test runner (`node --test`) with TypeScript type stripping — no test framework dependency.
+- **CI:** GitHub Actions (Node 22).
+
+## Architecture overview
+
+The browser handles UI and local state; all credentials and AI calls live on the server. A Next.js Route Handler applies a per-IP rate limit and loads the key from the environment, validates the request, calls the configured provider (rotating keys and failing over on retryable errors), and returns a safe result — the browser never sees the API key.
+
+```text
+Browser (Next.js client, localStorage)
+        │  same-origin JSON (no credentials)
+        ▼
+Next.js Route Handlers  ──►  guard (rate limit + server key) ──►  validate ──►  provider layer ──►  Groq / Gemini
+```
+
+Full design, trust boundaries, data model, API contract, and sequence diagrams: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. Point-in-time decisions are recorded in [docs/decisions.md](docs/decisions.md).
+
+## Getting started
+
+**Requirements**
+
+- **Node.js 22.6 or newer** (Node 22 LTS recommended). The test runner uses Node's built-in TypeScript type stripping (`--experimental-strip-types`, available from Node 22.6), so `npm test` will not run on older releases.
+- npm.
+- A Groq API key ([console.groq.com/keys](https://console.groq.com/keys)) for live AI calls. A Google Gemini key is optional (failover / alternate primary).
+
+**Install dependencies**
 
 ```bash
-npm install
-# add GEMINI_API_KEY=<your key> to .env.local  (GEMINI_MODEL is optional)
+npm ci
+```
+
+`npm ci` installs exactly from the committed `package-lock.json` for reproducible installs. If you are intentionally changing dependencies, use `npm install` instead.
+
+**Configure the environment**
+
+Copy [`.env.example`](.env.example) to `.env.local` and set the values:
+
+```bash
+cp .env.example .env.local
+# then edit .env.local and set GROQ_API_KEY=<your key>
+```
+
+**Run locally**
+
+```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`. The server calls Gemini with the environment key; there is no in-app setup. If `GEMINI_API_KEY` is unset, AI actions return a clear "server is not configured" error while the rest of the UI still loads.
+Open http://localhost:3000. There is no in-app setup screen — the server reads the keys from the environment. If no provider key is configured, AI actions return a clear "not configured" message while the rest of the UI still loads.
 
-Run quality checks:
+**Verify**
 
 ```bash
 npm test
@@ -37,55 +136,82 @@ npm run lint
 npm run build
 ```
 
-## Architecture
+## Environment variables
 
-- `app/page.tsx` — lead workspace, lead intake, prioritization, AI results, chat, and call brief UI.
-- `app/api/*` — same-origin server endpoints for lead analysis, chat, and call brief.
-- `lib/ai.ts` — server credential loading, model allowlist, safe provider errors.
-- `lib/gemini.ts` — request-scoped Gemini REST calls and response validation.
-- `lib/http.ts` — request guard (rate limit + credentials) and shared JSON/error helpers.
-- `lib/rate-limit.ts` — per-IP request limiting and a coarse quota warning.
-- `lib/scoring.ts` — deterministic lead scoring and priority mapping.
-- `lib/validation.ts` — server-side input validation.
-- `types/lead.ts` — shared TypeScript contracts.
+The server reads these variables (see [`.env.example`](.env.example); loading is implemented in `lib/providers.ts`):
 
-### AI request flow
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GROQ_API_KEY` | Yes (default setup) | Server-side Groq key used for all AI calls. |
+| `AI_PROVIDER` | No | `groq` (default) or `gemini` — which provider is primary. The other configured provider is used as failover. |
+| `GROQ_MODEL` | No | Overrides the Groq model. Must match a supported id (`openai/gpt-oss-120b` or `openai/gpt-oss-20b`); otherwise the default is used. |
+| `GROQ_API_KEY_2` … `GROQ_API_KEY_5` | No | Extra Groq keys. When set, the starting key rotates per request and the app fails over on `429`/`5xx`. Blanks are ignored. |
+| `GEMINI_API_KEY` | No | Optional Gemini key, used as failover (or as primary with `AI_PROVIDER=gemini`). |
+| `GEMINI_MODEL` | No | Overrides the Gemini model (`gemini-2.5-flash` or `gemini-2.5-flash-lite`). |
 
-1. The browser calls a same-origin Next.js API route with a JSON body only — no key is ever sent from the client.
-2. The server applies a per-IP rate limit, then reads `GEMINI_API_KEY` (and optional `GEMINI_MODEL`) from the environment.
-3. The server validates the request body and model allowlist, then makes a request-scoped HTTPS call to Gemini.
-4. The server returns the model result or a safe error message. Provider errors and credentials are not logged or returned verbatim.
+Notes:
 
-## Security and privacy notes
+- **Keys must remain server-side.** They are read only inside Route Handlers and are never sent to the browser, embedded in the client bundle, or persisted to storage. Never commit them or paste them into issues, screenshots, or source control. `.env.local` is git-ignored.
+- **Models are optional and allow-listed.** If unset or unsupported, the app falls back to that provider's default model. The model is never taken from the client.
+- **Rotation is best-effort.** Multiple keys improve resilience against a single key's rate limit, but rotation/output depends on the provider; it does not bypass an account- or organisation-level quota, and the cooldown state is in-memory and per server instance.
+- The supported model ids and defaults are defined in `lib/providers.ts`.
 
-- The Gemini key lives only in the host's environment. Never commit it or paste it into source control, screenshots, or bug reports.
-- The API routes validate request bodies, constrain model IDs, and rate-limit per client IP.
-- Leads and chat history are saved to the browser's localStorage. Do not enter sensitive personal data unless you understand that this is a local demo.
-- Rate limiting is in-memory and per serverless instance, so it is not a global cap (see the note in `lib/rate-limit.ts`); all visitors also share one free-tier key and quota.
-- This demo does not implement user authentication, a shared database, or multi-user tenancy. Deploy behind appropriate controls before handling real customer data.
-- The rule-based lead score is a transparent heuristic, not a prediction of conversion.
+**Configuring on Vercel**
 
-## Deployment
+1. Open the project in Vercel → **Settings → Environment Variables**.
+2. Add `GROQ_API_KEY` (and optionally `AI_PROVIDER`, `GROQ_MODEL`, `GROQ_API_KEY_2`, `GEMINI_API_KEY`) for the relevant environments (Production/Preview/Development).
+3. Redeploy so the new variables take effect.
 
-Deploy to Vercel or another Node.js-capable host:
+No secret belongs in `next.config.ts`, the repository, or any `NEXT_PUBLIC_*` variable — the app does not use client-exposed environment variables.
 
-1. Push the project to a public GitHub repository.
-2. Import it into Vercel and deploy with the default Next.js settings.
-3. Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) in the host's environment settings so reviewers can test with no setup.
-4. Test the deployed URL in a private browser session and verify all links are accessible.
+## AI behaviour and limitations
 
-## Known limitations
+- **Probabilistic output.** Model responses are generated, not deterministic. They can be incomplete or wrong and should always be reviewed by the salesperson before acting or sending a reply. The suggested reply is a draft, not a commitment.
+- **Grounding.** Analysis is generated only from the six intake fields. Chat is generated from those fields, the lead's current analysis, and the recent conversation. The prompts instruct the model not to invent availability, prices, or preferences, but this is a guideline, not a guarantee.
+- **Score is a heuristic.** The Hot/Warm/Cold ranking is a transparent rule-based score (`lib/scoring.ts`), independent of the AI, and is explicitly not a prediction of conversion.
+- **Storage.** Leads, analyses, chat, and call briefs are stored in the browser's `localStorage` only (key `masal-ai-leads-v1`). There is no server database. Data is per-browser and per-device, is lost if site data is cleared, and is not shared between users.
+- **Rate limiting.** AI routes are limited per client IP (see below); the limit is in memory and per server instance, so it is not a global cap.
+- **Deployment.** The app targets a Node.js-capable host (Vercel is the documented path). Deployment is not yet verified in this repository — the live URL is a placeholder.
 
-- Browser-local lead data is not synchronized across devices.
-- Demo leads are illustrative and should be removed before a production rollout.
-- The Gemini model allowlist is intentionally small; update `SUPPORTED_MODELS` after checking current Google model availability.
-- Live Gemini calls require network access and the server's key/quota. All visitors share one free-tier key, so heavy traffic can exhaust it. Unit tests do not call Google.
-- There is no CRM integration, authentication, or audit log.
+## Security and responsible use
+
+- **Server-side credentials.** Keys are read from the environment inside Route Handlers and attached only to the outbound provider request. The client sends JSON bodies with no credential headers, and no key is included in responses or logs.
+- **Input validation.** Route bodies are parsed as JSON objects, lead fields are length-checked and the timeline is allow-listed (`lib/validation.ts`), the chat question is length-checked, conversation history is shape-filtered, and any client-supplied analysis is validated against a defined shape with length limits before it is used. Invalid requests return `400` without calling the provider.
+- **Error handling.** Provider errors are mapped to safe, generic messages (`lib/providers.ts`); raw provider error text and credentials are not returned or logged. Unexpected errors return `502`.
+- **Rate limiter limitations.** The limiter is in-memory, per serverless instance, and resets on cold start; it only blunts casual abuse. It keys off the client IP derived from proxy headers, which is trustworthy behind Vercel's edge (which sets `x-forwarded-for` from the connection) but spoofable behind other proxies. See `lib/rate-limit.ts` and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- **Not implemented (treat as limitations):** there is no authentication, no authorization, no multi-user tenancy, no audit log, no CORS configuration beyond same-origin defaults, and no durable persistence. Do not use this demo with real customer data without adding appropriate controls.
+
+## Testing and verification
+
+```bash
+npm test          # unit tests (Node's built-in runner)
+npm run typecheck # tsc --noEmit
+npm run lint      # ESLint
+npm run build     # Next.js production build
+```
+
+The tests cover the deterministic and safety-critical pieces: lead validation and analysis validation, the rule-based scoring thresholds, the request guard (rate-limit `429`, no-provider `503`, and the returned provider plan), the rate limiter (window reset, per-IP isolation, IP parsing), provider routing and failover (default/alternate primary, model allow-list, key rotation, cooldown, `429`/`401`/`5xx` handling, safe all-fail), and that a lead's analysis reaches the chat prompt. Tests do not call a real provider API — live AI calls require configured keys and network access. CI runs the same four commands on Node 22 (`.github/workflows/ci.yml`).
 
 ## AI usage disclosure
 
-- **opencode (CLI coding assistant):** installed and validated this codebase, fixed the Node test-runner and TypeScript import issues, and updated this README.
-- **AI coding assistant(s):** the initial application build and the long series of `fix:`, `chore:`, and `docs:` commits, together with the retained `AGENTS.md` coding-agent rules, indicate an AI coding assistant was used to build and iterate on the app.
-- **Human review:** the repository owner reviewed and approved the changes and can explain the implementation choices.
+- **Runtime AI:** the application calls an external LLM provider for lead analysis, contextual chat, and call briefs — Groq by default (`lib/providers.ts`), with optional Gemini failover. The default models are defined in `lib/providers.ts`. This is the only AI used at runtime.
+- **AI-assisted development:** the repository contains `AGENTS.md` (coding-agent rules) and a commit history with `fix:`, `chore:`, and `docs:` changes, indicating that an AI coding assistant was used to build and iterate on the project.
+- **Human review:** the project owner reviewed and approved the changes and can explain the implementation choices.
 
-> Question for the owner: confirm the specific assistant(s) and tools (names, versions, and scope) used during the initial build so this disclosure is exact. Replace this note with the confirmed list before submitting; do not publish an unverified claim.
+> **Owner confirmation needed:** confirm the specific assistant(s)/tool(s) (names, versions, and scope — for example the initial build, refactors, or documentation) so this disclosure is exact. Replace this note before final submission; do not publish an unverified claim.
+
+## Submission checklist
+
+- [x] Lead intake form with the six required fields.
+- [x] Real AI-based lead analysis (server-side provider call).
+- [x] Contextual, per-lead conversational copilot.
+- [x] Multiple leads with score and Hot/Warm/Cold prioritization.
+- [x] Scan-friendly presentation of AI outputs.
+- [x] Additional Call Brief feature.
+- [x] Light/dark theme toggle.
+- [x] Multi-key rotation and provider failover.
+- [x] Tests, typecheck, lint, and build wired into CI.
+- [x] Server-side credential handling (no key on the client).
+- [ ] **Live application URL** — placeholder in this README.
+- [ ] **Demo video (≤ 3 minutes)** — placeholder in this README.
+- [ ] **AI usage disclosure** — owner to confirm the exact tools/scope above.
