@@ -15,6 +15,11 @@ A practical AI sales copilot for real-estate teams. Capture property inquiries, 
 
 Next.js App Router, React, TypeScript, Tailwind CSS, Google Gemini API via `@google/genai`, Zod, and browser localStorage.
 
+## Technical documentation
+
+- [Architecture](docs/architecture.md) — current components, request flows, trust boundaries, and deployment topology.
+- [System design](docs/system-design.md) — domain model, API contracts, scoring approach, persistence, security, trade-offs, and future evolution.
+
 ## Architecture
 
 ```text
