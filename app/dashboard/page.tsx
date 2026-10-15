@@ -133,8 +133,7 @@ export default function HomePage() {
     setLeads((current) => [lead, ...current]);
     setSelectedId(lead.id);
     setShowForm(false);
-    setForm({ name: "", location: "", propertyRequirement: "", budget: "", timeline: "Within 30 days", message: "" });
-    setFormErrors({});
+    resetForm();
     void analyze(lead);
   }
   async function sendQuestion(event: React.FormEvent) {
@@ -192,7 +191,14 @@ export default function HomePage() {
     try { localStorage.removeItem(DEMOS_DISMISSED_KEY); } catch { /* best-effort preference */ }
     setLeads((current) => [...buildDemoLeads(), ...current.filter((lead) => !isDemoLead(lead))]);
   }
-  function openForm() { setShowForm(true); setSidebarOpen(false); }
+  // The intake form always starts blank (the timeline keeps its default), and
+  // never keeps a previous enquiry or browser autofill on reopen.
+  function resetForm() {
+    setForm({ name: "", location: "", propertyRequirement: "", budget: "", timeline: "Within 30 days", message: "" });
+    setFormErrors({});
+  }
+  function openForm() { resetForm(); setShowForm(true); setSidebarOpen(false); }
+  function closeForm() { setShowForm(false); resetForm(); }
   function selectLead(id: string) { setSelectedId(id); setSidebarOpen(false); }
 
   return (
@@ -339,7 +345,7 @@ export default function HomePage() {
 
       {notice && <div role={notice.tone === "error" ? "alert" : "status"} className="fixed bottom-5 right-5 z-50 flex max-w-[calc(100vw-2.5rem)] items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] py-3 pl-3.5 pr-3 text-sm shadow-[var(--shadow-pop)]"><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${notice.tone === "error" ? "bg-[var(--danger-bg)] text-[var(--danger-fg)]" : "bg-[var(--accent-soft)] text-[var(--brand-text)]"}`}>{notice.tone === "error" ? <CircleAlert size={15}/> : <CircleCheck size={15}/>}</span><span className="text-[var(--text-soft)]">{notice.text}</span><button onClick={() => setNotice(null)} aria-label="Dismiss message" className="ml-1 text-[var(--text-muted)] transition hover:text-[var(--text)]"><X size={15}/></button></div>}
 
-      {showForm && <LeadForm form={form} errors={formErrors} onUpdate={updateForm} onSubmit={createLead} onClose={() => setShowForm(false)} />}
+      {showForm && <LeadForm form={form} errors={formErrors} onUpdate={updateForm} onSubmit={createLead} onClose={closeForm} />}
     </main>
   );
 }
@@ -605,15 +611,15 @@ function LeadForm({ form, errors, onUpdate, onSubmit, onClose }: {
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--overlay-bg)] sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="new-lead-title" className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-[var(--surface-2)] p-5 shadow-[var(--shadow-pop)] sm:rounded-lg sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4"><div><h2 id="new-lead-title" className="text-lg font-bold tracking-tight">Add a lead</h2><p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Enter what you know — you can update the rest later.</p></div><button onClick={onClose} aria-label="Close" className="rounded-md p-2 text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"><X size={17} aria-hidden="true" /></button></div>
-        <form onSubmit={onSubmit} noValidate className="space-y-4">
+        <form onSubmit={onSubmit} noValidate autoComplete="off" className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Customer name" htmlFor="lead-name" error={errors.name}><input id="lead-name" maxLength={120} value={form.name} onChange={(e) => onUpdate("name", e.target.value)} placeholder="e.g. Priya Sharma" className={inputClass}/></Field>
-            <Field label="Location" htmlFor="lead-location" error={errors.location}><input id="lead-location" maxLength={160} value={form.location} onChange={(e) => onUpdate("location", e.target.value)} placeholder="e.g. Whitefield, Bengaluru" className={inputClass}/></Field>
-            <Field label="Property requirement" htmlFor="lead-requirement" error={errors.propertyRequirement}><input id="lead-requirement" maxLength={300} value={form.propertyRequirement} onChange={(e) => onUpdate("propertyRequirement", e.target.value)} placeholder="e.g. 3 BHK apartment" className={inputClass}/></Field>
-            <Field label="Budget" htmlFor="lead-budget" error={errors.budget}><input id="lead-budget" maxLength={120} value={form.budget} onChange={(e) => onUpdate("budget", e.target.value)} placeholder="e.g. ₹1.2–1.5 Cr" className={inputClass}/></Field>
-            <Field label="Buying timeline" htmlFor="lead-timeline"><select id="lead-timeline" value={form.timeline} onChange={(e) => onUpdate("timeline", e.target.value as LeadInput["timeline"])} className={inputClass}>{BUYING_TIMELINES.map((timeline) => <option key={timeline}>{timeline}</option>)}</select></Field>
+            <Field label="Customer name" htmlFor="lead-name" error={errors.name}><input id="lead-name" name="lead-name" autoComplete="off" maxLength={120} value={form.name} onChange={(e) => onUpdate("name", e.target.value)} placeholder="e.g. Priya Sharma" className={inputClass}/></Field>
+            <Field label="Location" htmlFor="lead-location" error={errors.location}><input id="lead-location" name="lead-location" autoComplete="off" maxLength={160} value={form.location} onChange={(e) => onUpdate("location", e.target.value)} placeholder="e.g. Whitefield, Bengaluru" className={inputClass}/></Field>
+            <Field label="Property requirement" htmlFor="lead-requirement" error={errors.propertyRequirement}><input id="lead-requirement" name="lead-requirement" autoComplete="off" maxLength={300} value={form.propertyRequirement} onChange={(e) => onUpdate("propertyRequirement", e.target.value)} placeholder="e.g. 3 BHK apartment" className={inputClass}/></Field>
+            <Field label="Budget (in Rupees)" htmlFor="lead-budget" error={errors.budget}><input id="lead-budget" name="lead-budget" autoComplete="off" maxLength={120} value={form.budget} onChange={(e) => onUpdate("budget", e.target.value)} placeholder="e.g. 5000000, 50 lakhs, 1 cr, 1.3 cr" className={inputClass}/></Field>
+            <Field label="Buying timeline" htmlFor="lead-timeline"><select id="lead-timeline" name="lead-timeline" autoComplete="off" value={form.timeline} onChange={(e) => onUpdate("timeline", e.target.value as LeadInput["timeline"])} className={inputClass}>{BUYING_TIMELINES.map((timeline) => <option key={timeline}>{timeline}</option>)}</select></Field>
           </div>
-          <Field label="Customer message" htmlFor="lead-message" error={errors.message}><textarea id="lead-message" rows={5} maxLength={10000} value={form.message} onChange={(e) => onUpdate("message", e.target.value)} placeholder="Paste the customer's enquiry…" className={inputClass}/></Field>
+          <Field label="Customer message" htmlFor="lead-message" error={errors.message}><textarea id="lead-message" name="lead-message" autoComplete="off" rows={5} maxLength={10000} value={form.message} onChange={(e) => onUpdate("message", e.target.value)} placeholder="Paste the customer's enquiry…" className={inputClass}/></Field>
           <div className="flex justify-end gap-2 border-t border-[var(--border-soft)] pt-4"><button type="button" onClick={onClose} className="rounded-md border border-[var(--border-input)] px-4 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]">Cancel</button><button className="rounded-md bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]">Save and analyze</button></div>
         </form>
       </section>

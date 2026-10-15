@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readJsonObject } from "../lib/validation.ts";
 import { validateAnalysis } from "../lib/validation.ts";
 import { validateLead } from "../lib/validation.ts";
+import { readBudget } from "../lib/budget.ts";
 
 test("validates a complete lead", () => {
   const lead = validateLead({
@@ -25,6 +26,40 @@ test("normalizes a legacy timeline to the current bucket", () => {
     budget: "₹1.4 Cr", timeline: "1–3 months", message: "Would like to visit."
   });
   assert.equal(lead.timeline, "61–90 days");
+});
+
+test("normalizes numbers and Indian shorthand to a rupee amount", () => {
+  assert.equal(readBudget("5000000").amount, 5_000_000);
+  assert.equal(readBudget("50 lakhs").amount, 5_000_000);
+  assert.equal(readBudget("1 cr").amount, 10_000_000);
+  assert.equal(readBudget("1.3 cr").amount, 13_000_000);
+  assert.equal(readBudget("50 Lakhs").amount, 5_000_000);
+});
+
+test("a bare number is rupees, never lakhs or crores", () => {
+  assert.equal(readBudget("5000000").amount, 5_000_000);
+  assert.equal(readBudget("5000000.50").amount, 5_000_000.5);
+  assert.equal(readBudget("₹1.2–1.5 Cr").amount, 12_000_000);
+  assert.equal(readBudget("85 lakh").amount, 8_500_000);
+});
+
+test("undecided and descriptive budgets are read without an amount", () => {
+  assert.equal(readBudget("").kind, "unspecified");
+  assert.equal(readBudget("Not decided").kind, "unspecified");
+  assert.equal(readBudget("flexible").kind, "described");
+});
+
+test("malformed budget figures are rejected, not guessed", () => {
+  assert.equal(readBudget("lakh").kind, "invalid");
+  assert.equal(readBudget("0").kind, "invalid");
+  assert.equal(readBudget("-5 lakh").kind, "invalid");
+  assert.equal(readBudget("1.2.3 cr").kind, "invalid");
+});
+
+test("validateLead accepts shorthand budgets and rejects malformed ones", () => {
+  const lead = { name: "Asha Rao", location: "Whitefield", propertyRequirement: "3 BHK", budget: "50 lakhs", timeline: "Within 30 days", message: "Would like to visit this weekend." };
+  assert.equal(validateLead(lead).budget, "50 lakhs");
+  assert.throws(() => validateLead({ ...lead, budget: "lakh" }));
 });
 
 test("reads only JSON objects", async () => {

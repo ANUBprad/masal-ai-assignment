@@ -1,4 +1,5 @@
 import { normalizeTimeline, type LeadAnalysis, type LeadInput } from "../types/lead.ts";
+import { readBudget } from "./budget.ts";
 
 const ANALYSIS_TEXT_LIMIT = 4000;
 const ANALYSIS_ITEM_LIMIT = 600;
@@ -18,6 +19,8 @@ export function validateLead(value: unknown): LeadInput {
   if (!result.location || result.location.length > 160) throw new Error("Enter a valid location.");
   if (!result.propertyRequirement || result.propertyRequirement.length > 300) throw new Error("Enter a valid property requirement.");
   if (!result.budget || result.budget.length > 120) throw new Error("Enter a valid budget.");
+  const budget = readBudget(result.budget);
+  if (budget.kind === "invalid") throw new Error(budget.error ?? "Enter a valid budget.");
   const timeline = normalizeTimeline(result.timeline);
   if (!timeline) throw new Error("Choose a valid buying timeline.");
   result.timeline = timeline;
@@ -34,7 +37,9 @@ export function validateLeadFields(input: LeadInput): Partial<Record<keyof LeadI
   if (input.name.trim().length < 2) errors.name = "Enter a name between 2 and 120 characters.";
   if (!input.location.trim()) errors.location = "Enter the lead's location.";
   if (!input.propertyRequirement.trim()) errors.propertyRequirement = "Describe the property they want.";
+  const budget = readBudget(input.budget);
   if (!input.budget.trim()) errors.budget = "Enter a budget or indicate it is undecided.";
+  else if (budget.kind === "invalid") errors.budget = budget.error ?? "Enter a valid budget.";
   if (input.message.trim().length < 5) errors.message = "Add at least 5 characters of the enquiry.";
   return errors;
 }

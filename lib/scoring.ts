@@ -5,6 +5,7 @@
 // same input always produces the same score and breakdown. Missing information
 // is reported as `missing`, never silently treated as a positive signal.
 import { normalizeTimeline, type BuyingTimeline, type LeadInput, type LeadStatus, type Priority, type ScoreDimension, type ScoreDimensionKey } from "../types/lead.ts";
+import { readBudget } from "./budget.ts";
 
 export const SCORE_MAX = 100;
 
@@ -123,9 +124,6 @@ const INTENT_RULES: IntentRule[] = [
 
 const CONFIG_RE = /(?:\d+\s*bhk|bhk|apartment|flat|villa|plot|row ?house|penthouse|studio|independent house|house)/i;
 const CONSTRAINT_RE = /\b(gated|security|secure|parking|car ?park|amenit\w*|near|close to|walking distance|metro|school|hospital|itpl|access|ready[- ]?to[- ]?move|vaastu|vastu|facing|floor|balcony|gym|pool|swimming|garden|clubhouse|pet)\b/i;
-const NO_BUDGET_RE = /^\s*(?:not decided|undecided|unknown|n\/?a|none|-|—)?\s*$/i;
-const BUDGET_SYMBOL_RE = /(?:₹|rs\.?|inr)\s*\d/i;
-const BUDGET_UNIT_RE = /\d[\d.,]*\s*(?:cr\b|crore|l\b|lakh|lac|k\b|thousand)/i;
 const FINANCE_FULL_RE = /\b(pre[- ]?approv\w*|loan (?:is |has been )?approved|sanction\w*|self[- ]?fund\w*|self[- ]?financ\w*|cash (?:purchase|buy|ready)|own funds|funds (?:are )?ready|down ?payment ready|financing (?:arranged|ready|approved)|home loan approved|mortgage approved)\b/i;
 const FINANCE_PARTIAL_RE = /\b(loan|home loan|housing loan|mortgage|emi|financ\w*|bank)\b/i;
 const COMMITMENT_MSG_RE = /\b(visit is )?(confirmed|booked|scheduled)\b|\blet'?s meet\b|\bready to visit\b|\btoken (?:paid|ready)\b/i;
@@ -175,7 +173,7 @@ function clarityDimension(input: LeadInput): ScoreDimension {
   if (CONFIG_RE.test(input.propertyRequirement)) { earned += 5; evidence.push("Property type/configuration stated"); }
   else missing.push("Property type/configuration (e.g. BHK, villa, plot) not stated");
 
-  if (!NO_BUDGET_RE.test(input.budget)) { earned += 5; evidence.push("Budget specified"); }
+  if (readBudget(input.budget).kind !== "unspecified") { earned += 5; evidence.push("Budget specified"); }
   else missing.push("Budget amount not specified");
 
   if (CONSTRAINT_RE.test(`${input.propertyRequirement} ${input.message}`)) { earned += 5; evidence.push("Preferences/constraints noted"); }
@@ -188,17 +186,17 @@ function clarityDimension(input: LeadInput): ScoreDimension {
 // readiness (0–10). A flexible budget is not penalised; a stated budget is not
 // evidence of financing.
 function budgetDimension(input: LeadInput): ScoreDimension {
-  const budget = input.budget.trim();
+  const budget = readBudget(input.budget);
   const message = input.message.toLowerCase();
   const evidence: string[] = [];
   const missing: string[] = [];
   let earned = 0;
 
-  if (NO_BUDGET_RE.test(budget)) {
+  if (budget.kind === "unspecified") {
     missing.push("Budget not stated");
-  } else if (BUDGET_SYMBOL_RE.test(budget) || BUDGET_UNIT_RE.test(budget)) {
+  } else if (budget.kind === "quantified") {
     earned += 10;
-    evidence.push(`Specific budget stated: ${budget}`);
+    evidence.push(`Specific budget stated: ${input.budget.trim()}`);
   } else {
     earned += 5;
     evidence.push("Budget discussed but not quantified");

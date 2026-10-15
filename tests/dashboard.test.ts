@@ -51,10 +51,27 @@ test("the Content-Security-Policy header is applied to every route", async () =>
 
 test("both Add Lead actions open the same intake form", () => {
   const source = dashboardSource();
-  assert.ok(source.includes("function openForm() { setShowForm(true); setSidebarOpen(false); }"), "a single opener must set the form open");
+  assert.ok(source.includes("function openForm() { resetForm(); setShowForm(true); setSidebarOpen(false); }"), "a single opener must reset the form before opening it");
   assert.ok(source.includes("onClick={openForm}"), "the sidebar must open the form");
   assert.ok(source.includes("onAdd={openForm}"), "the welcome state must open the same form");
   assert.ok(source.includes("{showForm &&"), "the form must render only while open");
+});
+
+test("the intake form starts blank, on open and on close", () => {
+  const source = dashboardSource();
+  assert.ok(source.includes("function resetForm()"), "a single reset helper must clear the form");
+  assert.ok(source.includes(`setForm({ name: "", location: "", propertyRequirement: "", budget: "", timeline: "Within 30 days", message: "" })`), "reset must clear every field and keep the default timeline");
+  assert.ok(source.includes("function closeForm() { setShowForm(false); resetForm(); }"), "closing must clear the form");
+  assert.ok(source.includes("onClose={closeForm}"), "the modal must reset through closeForm");
+  assert.ok(source.includes("setShowForm(false);") && source.includes("resetForm();"), "saving must also reset the form");
+});
+
+test("the intake form opts out of browser autofill and labels budget in rupees", () => {
+  const source = dashboardSource();
+  assert.ok(source.includes('autoComplete="off"'), "the form and its fields must opt out of autofill");
+  assert.ok(source.includes("Budget (in Rupees)"), "the budget field must state the currency");
+  assert.ok(source.includes("e.g. 5000000, 50 lakhs, 1 cr, 1.3 cr"), "the budget placeholder must show the accepted formats");
+  assert.ok(!source.includes('type="number"'), "budget must stay a free-text field, never a number input");
 });
 
 test("the intake form can be closed from every control", () => {
