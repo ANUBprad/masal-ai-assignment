@@ -16,8 +16,6 @@ const FACTORS: Record<string, number> = {
   lakh: 100_000, lakhs: 100_000, lac: 100_000, lacs: 100_000,
   thousand: 1_000, thousands: 1_000, k: 1_000
 };
-const NUMBER = "(\\d[\\d,]*(?:\\.\\d+)?)";
-const UNIT = "(crores?|cr|lakhs?|lacs?|thousands?|k)";
 
 function parseNumber(value: string): number | undefined {
   if (!/^\d[\d,]*(?:\.\d+)?$/.test(value)) return undefined;
@@ -45,6 +43,10 @@ export function readBudget(raw: string): BudgetReading {
     .replace(/₹/g, " ")
     .replace(/[–—]/g, "-")
     .replace(/(\d)\s*(crores?|cr|lakhs?|lacs?|thousands?|k)\b/gi, "$1 $2")
+    // A trailing annotation such as "(flexible)" qualifies one clear figure; it
+    // is not a second amount. A parenthetical that contains digits is left for
+    // the ambiguity checks below.
+    .replace(/\s*\([^()\d]*\)\s*$/, " ")
     .trim();
 
   const number = "\\d[\\d,]*(?:\\.\\d+)?";
