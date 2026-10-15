@@ -22,7 +22,7 @@ const UNIT = "(crores?|cr|lakhs?|lacs?|thousands?|k)";
 function parseNumber(value: string): number | undefined {
   if (!/^\d[\d,]*(?:\.\d+)?$/.test(value)) return undefined;
   // Commas must be conventional thousands separators, not arbitrary punctuation.
-  if (value.includes(",") && !/^\d{1,3}(,\d{3})*(?:\.\d+)?$/.test(value)) return undefined;
+  if (value.includes(",") && !/^(?:\d{1,3}(,\d{3})+|\d{1,2}(,\d{2})*,\d{3})(?:\.\d+)?$/.test(value)) return undefined;
   const number = Number(value.replace(/,/g, ""));
   return Number.isFinite(number) && number > 0 ? number : undefined;
 }
