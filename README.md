@@ -11,8 +11,21 @@
 
 ---
 
+## Product demo
+
+**[Watch the product demo on Google Drive](https://drive.google.com/file/d/1ovpBG_bRJm6eGX8FIQjZtlP0-Mcx9PyD/view?usp=sharing)**
+
+A short screen-recorded walkthrough of the end-to-end workflow: capturing and managing leads, running the AI analysis and reviewing the grounded suggested reply, reading the deterministic priority score and its breakdown, generating a Call Brief, and asking the Sales Copilot a custom question.
+
+Try it live: [assignment-masal.vercel.app](https://assignment-masal.vercel.app) · Source: [github.com/ANUBprad/masal-ai-assignment](https://github.com/ANUBprad/masal-ai-assignment)
+
+> Access note: the video is hosted on Google Drive. If the link does not open, the file's sharing setting must allow "Anyone with the link" so reviewers can view it. This repository cannot itself verify that the Drive link is publicly accessible.
+
+---
+
 ## Table of contents
 
+- [Product demo](#product-demo)
 - [The problem and the solution](#the-problem-and-the-solution)
 - [Feature overview](#feature-overview)
 - [Demo walkthrough](#demo-walkthrough)
@@ -48,7 +61,7 @@ The two halves are kept deliberately separate: a small rules engine decides *who
 | **Lead capture and management** | A six-field intake form (name, location, property requirement, budget, timeline, message) with per-field validation. Leads are stored per browser and can be searched, filtered by priority, and removed. |
 | **AI analysis and grounded suggested replies** | A one-shot analysis returns a summary, intent, key requirements, objections/concerns, a recommended next action, and a suggested reply. It also separates **known facts**, **inferences**, **unknowns**, and **deal risks** so confirmed information is not confused with interpretation. |
 | **Explainable deterministic scoring** | A fixed five-dimension rubric produces the score and the `Act Now` / `Follow Up` / `Nurture` label, with a per-dimension breakdown, positive signals, and the missing information. See [Lead scoring explained](#lead-scoring-explained). |
-| **Call Brief** | The chosen extra feature: a dedicated server route generates a compact pre-call prep sheet (objective, opening line, talking points, qualifying questions, watch-outs) from the same lead context. |
+| **Call Brief** | The chosen extra feature: a dedicated server route generates a compact pre-call prep sheet (objective, opening line, talking points, qualifying questions, watch-outs) from the same lead context, signed with one canonical salesperson identity (`Anubhab Pradhan` from `masal.ai`, defined once in `lib/site.ts`) so customer-facing copy never shows a placeholder. |
 | **Custom-question Sales Copilot** | Ask anything about the selected lead; the answer is grounded in that lead's fields, its analysis, its score/priority, and the recent conversation. Chat is stored per lead. |
 | **Pipeline status and demo leads** | Track each lead through `New → Contacted → Visit scheduled → Qualified → Closed`. Three clearly labelled demo scenarios (one per priority band) show the workspace end to end and can be removed in one click. |
 
