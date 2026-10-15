@@ -369,6 +369,7 @@ export async function answerChat(
     : leadContext(lead);
   const answer = await attemptWithFailover(plan, (candidate) =>
     generateText(candidate, `${CHAT_PROMPT}\n\nLead context:\n${context}\n\nConversation:\n${safeHistory}\nSalesperson's latest question:\n${question.slice(0, 5000)}`));
+  return resolveIdentityPlaceholders(answer);
 }
 
 export async function generateCallBrief(plan: ProviderKey[], lead: LeadInput): Promise<CallBrief> {
