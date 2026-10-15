@@ -383,15 +383,28 @@ export async function generateCallBrief(plan: ProviderKey[], lead: LeadInput): P
   const raw = await attemptWithFailover(plan, (candidate) =>
     generateText(candidate, `${CALL_BRIEF_PROMPT}\n\nLead context:\n${leadContext(lead)}`, true));
   const result = parseJson<CallBrief>(raw);
-  if (typeof result.objective !== "string" || !Array.isArray(result.talkingPoints) ||
-      !Array.isArray(result.questions) || !Array.isArray(result.watchOutFor) ||
-      typeof result.openingLine !== "string") {
+  const boundedText = (value: unknown, max: number): value is string =>
+    typeof value === "string" && value.trim().length > 0 && value.length <= max;
+  const boundedList = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.length <= 12 &&
+    value.every((item) => typeof item === "string" && item.trim().length > 0 && item.length <= 500);
+  if (!result || typeof result !== "object" ||
+      !boundedText(result.objective, 1_500) ||
+      !boundedText(result.openingLine, 500) ||
+      !boundedList(result.talkingPoints) ||
+      !boundedList(result.questions) ||
+      !boundedList(result.watchOutFor)) {
     throw new AiFailure(MESSAGES.malformed, "malformed");
   }
-  // Even with the identity and grounding written into the prompt, a model can
-  // still echo a [Your Name]-style token or assert an unverified booking; resolve
-  // identity and soften unsupported claims so the brief is always safe.
-  return guardCallBrief(result);
+  // Bound and normalize provider output before claim guarding or returning it.
+  const normalized: CallBrief = {
+    objective: result.objective.trim(),
+    openingLine: result.openingLine.trim(),
+    talkingPoints: result.talkingPoints.map((item) => item.trim()),
+    questions: result.questions.map((item) => item.trim()),
+    watchOutFor: result.watchOutFor.map((item) => item.trim())
+  };
+  return guardCallBrief(normalized);
 }
 
 export function safeAiError(error: unknown): string {
