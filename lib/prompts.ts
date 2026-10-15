@@ -105,7 +105,11 @@ const BOOKING_CLAIM_RE =
 
 // Asserting that a property exists, is available, or is ready to move in.
 const INVENTORY_CLAIM_RE =
-  /\b(?:ready to move in|move-in ready|available now|currently available|in stock|on the market)\b|\bwe (?:do )?(?:currently )?have\b[^.!?\n]{0,40}?\b(?:units?|flats?|apartments?|villas?|plots?|options?|properties|inventory|communities|stock)\b/i;
+  /\b(?:ready to move in|move-in ready|available now|currently available|in stock|on the market)\b|\bwe (?:do )?(?:currently )?have\b[^.!?\n]{0,60}?\b(?:units?|flats?|apartments?|villas?|plots?|options?|properties|inventory|communities|stock)\b|\b(?:our|we have)\s+(?:available\s+)?(?:properties|apartments|flats|inventory|communities)\b/i;
+const PRICE_CLAIM_RE =
+  /\b(?:the price is|priced at|costs?|will cost|we offer|we can offer|guaranteed price|fixed price)\b[^.!?\n]{0,50}(?:₹|\b(?:rs\.?|inr)\b|\b\d+(?:\.\d+)?\s*(?:lakh|lakhs|crore|crores|cr)\b|\b\d+\s*%\s*discount\b)/i;
+const DISCOUNT_CLAIM_RE =
+  /\b(?:discount|cashback|rebate|price reduction)\b[^.!?\n]{0,40}\b(?:offer|available|guaranteed|approved|assured|\d+\s*%)\b|\b(?:offer|give|provide)\b[^.!?\n]{0,30}\b\d+\s*%\s*discount\b/i;
 
 // Returns the categories of unsupported claim found in a generated text
 // ("availability", "booking"), so callers can act on them deterministically.
@@ -113,6 +117,8 @@ export function detectUnsupportedClaims(text: string): string[] {
   const found: string[] = [];
   if (BOOKING_CLAIM_RE.test(text)) found.push("booking");
   if (INVENTORY_CLAIM_RE.test(text)) found.push("availability");
+  if (PRICE_CLAIM_RE.test(text)) found.push("price");
+  if (DISCOUNT_CLAIM_RE.test(text)) found.push("discount");
   return found;
 }
 
@@ -152,18 +158,28 @@ export function guardSuggestedReply(reply: string, lead: Pick<LeadInput, "name" 
 }
 
 export function guardChatAnswer(answer: string): string {
-  return softenUnsupportedClaims(resolveIdentityPlaceholders(answer));
+  const resolved = resolveIdentityPlaceholders(answer);
+  // A free-form answer has no trusted inventory/pricing source to validate
+  // against. If it asserts a restricted fact, replace the whole answer rather
+  // than trying to repair an arbitrary sentence with regex substitutions.
+  if (detectUnsupportedClaims(resolved).length) {
+    return "I can't verify current property availability, pricing, discounts, or appointment status from the lead details alone. Check the latest inventory and approved pricing, then confirm the details with the customer before making a commitment.";
+  }
+  return softenUnsupportedClaims(resolved);
 }
 
 // Apply identity resolution and claim softening to every free-text field of a
 // generated call brief.
 export function guardCallBrief(brief: CallBrief): CallBrief {
-  const clean = (value: string) => softenUnsupportedClaims(resolveIdentityPlaceholders(value));
+  const clean = (value: string, fallback: string) => {
+    const resolved = resolveIdentityPlaceholders(value);
+    return detectUnsupportedClaims(resolved).length ? fallback : softenUnsupportedClaims(resolved);
+  };
   return {
-    objective: clean(brief.objective),
-    openingLine: clean(brief.openingLine),
-    talkingPoints: brief.talkingPoints.map(clean),
-    questions: brief.questions.map(clean),
-    watchOutFor: brief.watchOutFor.map(clean)
+    objective: clean(brief.objective, "Confirm the customer's requirements and check current inventory and approved pricing."),
+    openingLine: clean(brief.openingLine, "Hello, this is Anubhab Pradhan from masal.ai."),
+    talkingPoints: brief.talkingPoints.slice(0, 12).map((value) => clean(value, "Confirm current inventory and pricing before making a commitment.")),
+    questions: brief.questions.slice(0, 12).map((value) => clean(value, "What budget and property requirements should we confirm?")),
+    watchOutFor: brief.watchOutFor.slice(0, 12).map((value) => clean(value, "Do not promise availability, pricing, discounts, or a visit before verification."))
   };
 }
