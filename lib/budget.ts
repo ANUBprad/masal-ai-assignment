@@ -48,7 +48,7 @@ export function readBudget(raw: string): BudgetReading {
     .trim();
 
   const number = "\\d[\\d,]*(?:\\.\\d+)?";
-  const unit = "(crores?|cr|lakhs?|lacs?|thousands?|k)";
+  const unit = "(?:crores?|cr|lakhs?|lacs?|thousands?|k)";
   const repeatedUnitRange = new RegExp("^\\s*(" + number + ")\\s*(" + unit + ")\\s*-\\s*(" + number + ")\\s*(" + unit + ")\\s*$", "i").exec(normalized);
   if (repeatedUnitRange) {
     const low = parseNumber(repeatedUnitRange[1]);
