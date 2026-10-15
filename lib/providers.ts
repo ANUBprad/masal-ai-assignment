@@ -11,7 +11,7 @@
 //
 // Cooldown state is in-memory and therefore per serverless instance. See
 // docs/ARCHITECTURE.md for the caveats (per-instance, reset on cold start).
-import { ANALYSIS_PROMPT, CALL_BRIEF_PROMPT, CHAT_PROMPT, analysisContext, leadContext, resolveCallBriefIdentity } from "./prompts.ts";
+import { ANALYSIS_PROMPT, CALL_BRIEF_PROMPT, CHAT_PROMPT, analysisContext, leadContext, resolveCallBriefIdentity, resolveIdentityPlaceholders } from "./prompts.ts";
 import type { CallBrief, ChatMessage, LeadAnalysis, LeadInput, Priority } from "@/types/lead";
 
 export type ProviderName = "groq" | "gemini";
@@ -367,7 +367,7 @@ export async function answerChat(
   const context = analysis
     ? `${leadContext(lead)}\n\n${analysisContext(analysis, score, priority)}`
     : leadContext(lead);
-  return attemptWithFailover(plan, (candidate) =>
+  const answer = await attemptWithFailover(plan, (candidate) =>
     generateText(candidate, `${CHAT_PROMPT}\n\nLead context:\n${context}\n\nConversation:\n${safeHistory}\nSalesperson's latest question:\n${question.slice(0, 5000)}`));
 }
 
