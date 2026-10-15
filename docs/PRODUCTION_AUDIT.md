@@ -78,14 +78,12 @@ per-instance. Do not use this demo with real customer data.
 
 ## 7. Verification performed
 
-Commands run against this revision: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
+This document was refreshed after the budget parsing, AI grounding, and Call Brief validation changes on 15 October 2026.
 
-- Tests: 111 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy, the hero workflow, and the scoring factors/priority bands derived from the engine (`tests/landing.test.ts`), the shared priority colour mapping (`tests/priority.test.ts`), the theme default and tokens (`tests/theme.test.ts`), and the call-brief identity/placeholder handling (`tests/prompts.test.ts`, `tests/providers.test.ts`).
-- Typecheck (`tsc --noEmit`) and lint: clean (lint reports only pre-existing config warnings).
-- Production build (`next build`): succeeded; `/`, `/privacy`, `/terms`, `/icon.svg`, `/opengraph-image`, `/robots.txt`, `/sitemap.xml`, and the `/dashboard` shell prerendered as static; the three API routes stayed dynamic.
+- **CI:** the repository workflow runs `npm ci`, `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` on Node 22 for pushes and pull requests to `main`. Check the latest [GitHub Actions run](https://github.com/ANUBprad/masal-ai-assignment/actions) for the authoritative result and test count; do not reuse historical test counts from earlier revisions.
+- **Budget parsing:** regression tests cover matching amounts to units, ambiguous multiple amounts, Indian comma grouping, ranges, and malformed input.
+- **AI grounding:** regression tests cover unsupported inventory, price, discount, and booking claims across Sales Copilot and Call Brief output. These are deterministic pattern-based safeguards, not a guarantee against every possible hallucination.
+- **Generated Call Brief:** provider output is bounded by field type, length, and array size before it is returned.
+- **Not verified by this source audit:** manual browser visual checks, keyboard and mobile interaction checks, live external-provider responses, current Vercel production behaviour/logs, and Google Drive video sharing permissions.
 
-A local `next start` pass with HTTP checks was run on a previous revision (all four pages returned `200`, the landing page served the expected title/description/canonical/Open Graph URL, `/dashboard` carried `noindex`, and `/api/analyze` returned `400` for an invalid body); that local-server step was **not** re-run for this revision.
-
-**Not verified:** visual/browser layout checks (no browser tooling was available in this
-environment) and the deployed Vercel build. A Git push does not imply production is updated —
-confirm the Vercel deployment separately.
+A successful CI build establishes that the configured checks passed for that commit; it does not establish that every browser workflow or external integration was manually exercised.
