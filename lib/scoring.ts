@@ -97,31 +97,48 @@ const NEGATED_INTENT_RE =
 const NEGATED_ENGAGEMENT_RE =
   /\b(?:not|never|no|won'?t|can'?t|cannot|don'?t|doesn'?t|isn'?t|aren'?t|unable)\b[^.]{0,40}?\b(?:visit|tour|meet|call|schedule|appointment)\b/i;
 
-interface IntentRule { points: number; label: string; patterns: RegExp[]; }
-// Evaluated top to bottom; the first tier with any match wins.
-const INTENT_RULES: IntentRule[] = [
-  {
-    points: 25,
-    label: "Explicitly ready to purchase",
-    patterns: [/\bready to (buy|purchase|book|pay|proceed)\b/, /\bwant to (buy|purchase|book)\b/, /\bbook(?:ing)? (?:a |the )?\w*(?:flat|unit|apartment|property|place)\b/, /\bpay (?:a )?(?:token|booking|advance)\b/]
-  },
-  {
-    points: 18,
-    label: "Actively comparing or shortlisting",
-    patterns: [/\bcompar\w*\b/, /\bshortlist\w*\b/, /\bnarrowed (?:it )?down\b/, /\bsend (?:me )?(?:the )?floor ?plans?\b/, /\bdeciding between\b/, /\bwhich (?:project|option|builder)\b/]
-  },
-  {
-    points: 3,
-    label: "Browsing without a purchase commitment",
-    patterns: [/\bjust (?:looking|browsing|exploring|starting)\b/, /\bonly (?:researching|exploring|looking|browsing|starting)\b/, /\bexploring\b/, /\bcurious\b/, /\bno (?:urgency|rush)\b/, /\blook(?:ing)? around\b/]
-  },
-  {
-    points: 10,
-    label: "General interest in purchasing",
-    patterns: [/\blooking for\b/, /\binterested in (?:buying|a|an|this|that)\b/, /\bplanning to (?:buy|purchase)\b/, /\bwant (?:a|an|to buy)\b/, /\bneed (?:a|an)\b/, /\blooking to (?:buy|purchase)\b/]
-  }
-];
+// Intent is assembled from independent, non-overlapping evidence signals rather
+// than a single first-match tier. Strong signals are summed (partial credit for
+// combined evidence, capped at the dimension max); weak signals are fallbacks
+// that apply only when no strong signal is present, and browsing caps the score
+// so exploratory phrasing can never outrank a genuine interest statement. Each
+// phrase belongs to exactly one signal, so the same evidence is never counted
+// twice.
+interface IntentSignal { points: number; label: string; patterns: RegExp[]; }
 
+const READY_SIGNAL: IntentSignal = {
+  points: 25,
+  label: "Explicitly ready to purchase",
+  patterns: [/\bready to (?:buy|purchase|book|pay|proceed)\b/, /\bwant to (?:buy|purchase|book)\b/, /\bintend(?:ing)? to (?:buy|purchase)\b/]
+};
+const COMPARING_SIGNAL: IntentSignal = {
+  points: 18,
+  label: "Actively comparing or shortlisting options",
+  patterns: [/\bcompar\w+\b/, /\bshortlist\w+\b/, /\bnarrowed (?:it )?down\b/, /\bdeciding between\b/, /\bwhich (?:project|option|builder|one)\b/, /\b(?:evaluating|reviewing) (?:a few|multiple|several|options|projects)\b/]
+};
+const BOOKING_SIGNAL: IntentSignal = {
+  points: 12,
+  label: "Concrete booking or payment action stated",
+  patterns: [/\bbook(?:ing)?\b.*\b(?:bhk|flat|unit|apartment|property|place|home)\b/, /\bpay (?:a )?(?:token|booking|advance)\b/, /\bbooking amount\b/, /\btoken (?:amount|money|ready|paid)\b/, /\badvance payment\b/]
+};
+const GENERAL_SIGNAL: IntentSignal = {
+  points: 10,
+  label: "General interest in purchasing",
+  patterns: [/\blooking for\b/, /\binterested in\b/, /\bneed (?:a|an)\b/, /\bwant (?:a|an)\b/, /\blooking to (?:buy|purchase)\b/, /\bplanning to (?:buy|purchase)\b/, /\bhoping to (?:buy|purchase)\b/, /\bkeen (?:on|to) (?:buy|purchase|own)\b/]
+};
+const BROWSING_SIGNAL: IntentSignal = {
+  points: 3,
+  label: "Browsing without a purchase commitment",
+  patterns: [/\bjust (?:looking|browsing|exploring|starting)\b/, /\bonly (?:researching|exploring|looking|browsing|starting|checking)\b/, /\bexploring\b/, /\bcurious\b/, /\bno (?:urgency|rush|hurry)\b/, /\bnot in a (?:hurry|rush)\b/, /\blook(?:ing)? around\b/, /\bearly (?:stage|stages|days)\b/]
+};
+
+const STRONG_INTENT_SIGNALS = [READY_SIGNAL, COMPARING_SIGNAL, BOOKING_SIGNAL];
+
+// ponytail: intent is still keyword-based, so it reads phrasing, not meaning. The
+// ceiling is unusual wording ("looking to acquire") scoring low; the upgrade path
+// is structured intake fields or a calibrated model, neither of which belongs in
+// this deterministic module.
+const SPECIFIC_CONFIG_RE = /\d+(?:\.\d+)?\s*(?:bhk|bed(?:room)?s?|br)\b|\b\d[\d,.]*\s*(?:sq\.?\s*ft|sqft|square\s*feet|sq\.?\s*m(?:etre|eter)?s?)\b/i;
 const CONFIG_RE = /(?:\d+\s*bhk|bhk|apartment|flat|villa|plot|row ?house|penthouse|studio|independent house|house)/i;
 const CONSTRAINT_RE = /\b(gated|security|secure|parking|car ?park|amenit\w*|near|close to|walking distance|metro|school|hospital|itpl|access|ready[- ]?to[- ]?move|vaastu|vastu|facing|floor|balcony|gym|pool|swimming|garden|clubhouse|pet)\b/i;
 const FINANCE_FULL_RE = /\b(pre[- ]?approv\w*|loan (?:is |has been )?approved|sanction\w*|self[- ]?fund\w*|self[- ]?financ\w*|cash (?:purchase|buy|ready)|own funds|funds (?:are )?ready|down ?payment ready|financing (?:arranged|ready|approved)|home loan approved|mortgage approved)\b/i;
@@ -143,48 +160,59 @@ function timelineDimension(input: LeadInput): ScoreDimension {
   return dimension("timeline", "Buying timeline", points, [`Stated timeline: ${timeline}`], []);
 }
 
-// Purchase intent (25). Classified only from the customer message; a short
-// timeline alone never implies a purchase commitment. Positive tiers are judged
-// per affirmative clause so a negation in one clause does not mask a real signal
-// in another; the browsing tier is judged on every clause so exploratory
-// phrasing always caps the score below a general-interest claim.
+// Purchase intent (25). Judged only from the customer message; a short timeline
+// alone never implies a purchase commitment. Strong signals are summed per
+// affirmative clause, so combined evidence earns partial credit and a negation
+// in one clause cannot mask a real signal in another; browsing is judged on
+// every clause and caps the weak tiers.
 function intentDimension(input: LeadInput): ScoreDimension {
   const parts = clauses(input.message);
   const affirmative = parts.filter((part) => !NEGATED_INTENT_RE.test(part));
-  for (const rule of INTENT_RULES) {
-    const target = rule.points === 3 ? parts : affirmative;
-    if (target.some((part) => rule.patterns.some((pattern) => pattern.test(part)))) {
-      return dimension("intent", "Purchase intent", rule.points, [rule.label], []);
-    }
+  const matches = (signal: IntentSignal, scope: string[]) => scope.some((part) => signal.patterns.some((pattern) => pattern.test(part)));
+
+  const strong = STRONG_INTENT_SIGNALS.filter((signal) => matches(signal, affirmative));
+  if (strong.length) {
+    const points = Math.min(DIMENSION_MAX.intent, strong.reduce((sum, signal) => sum + signal.points, 0));
+    return dimension("intent", "Purchase intent", points, strong.map((signal) => signal.label), []);
   }
+  if (matches(BROWSING_SIGNAL, parts)) return dimension("intent", "Purchase intent", BROWSING_SIGNAL.points, [BROWSING_SIGNAL.label], []);
+  if (matches(GENERAL_SIGNAL, affirmative)) return dimension("intent", "Purchase intent", GENERAL_SIGNAL.points, [GENERAL_SIGNAL.label], []);
   return dimension("intent", "Purchase intent", 0, [], ["No purchase-intent evidence in the customer message"]);
 }
 
-// Requirement clarity (20). Four 5-point components, each awarded only when the
-// stored data supports it.
+// Requirement clarity (20). Built from four independently-scored components,
+// each with partial credit where the recorded evidence is partial: a bare type
+// word earns less than a stated configuration, and a budget that is discussed
+// but not quantified earns less than a figure. A property type alone never earns
+// the full dimension.
 function clarityDimension(input: LeadInput): ScoreDimension {
   const evidence: string[] = [];
   const missing: string[] = [];
   let earned = 0;
+  const requirement = input.propertyRequirement;
 
-  if (input.location.trim()) { earned += 5; evidence.push(`Location: ${input.location.trim()}`); }
+  if (input.location.trim()) { earned += 5; evidence.push(`Location provided: ${input.location.trim()}`); }
   else missing.push("Location not specified");
 
-  if (CONFIG_RE.test(input.propertyRequirement)) { earned += 5; evidence.push("Property type/configuration stated"); }
+  if (SPECIFIC_CONFIG_RE.test(requirement)) { earned += 5; evidence.push("Specific property configuration stated"); }
+  else if (CONFIG_RE.test(requirement)) { earned += 3; evidence.push("Property type stated without a specific configuration"); missing.push("Property size/configuration (e.g. 3 BHK) not specified"); }
   else missing.push("Property type/configuration (e.g. BHK, villa, plot) not stated");
 
-  if (readBudget(input.budget).kind !== "unspecified") { earned += 5; evidence.push("Budget specified"); }
+  const budget = readBudget(input.budget);
+  if (budget.kind === "quantified") { earned += 5; evidence.push("Budget amount provided"); }
+  else if (budget.kind === "described") { earned += 3; evidence.push("Budget discussed but not quantified"); missing.push("Budget amount not specified"); }
   else missing.push("Budget amount not specified");
 
-  if (CONSTRAINT_RE.test(`${input.propertyRequirement} ${input.message}`)) { earned += 5; evidence.push("Preferences/constraints noted"); }
+  if (CONSTRAINT_RE.test(`${requirement} ${input.message}`)) { earned += 5; evidence.push("Preferences or constraints noted (location, amenities, etc.)"); }
   else missing.push("No specific preferences or constraints recorded");
 
   return dimension("clarity", "Requirement clarity", earned, evidence, missing);
 }
 
 // Budget readiness (20): budget specificity (0–10) plus explicit financial
-// readiness (0–10). A flexible budget is not penalised; a stated budget is not
-// evidence of financing.
+// readiness (0–10), scored as separate evidence. A flexible budget is not
+// penalised. A stated budget is not financing: missing financing information is
+// reported as unconfirmed, never treated as proof of financial weakness.
 function budgetDimension(input: LeadInput): ScoreDimension {
   const budget = readBudget(input.budget);
   const message = input.message.toLowerCase();
@@ -192,39 +220,39 @@ function budgetDimension(input: LeadInput): ScoreDimension {
   const missing: string[] = [];
   let earned = 0;
 
-  if (budget.kind === "unspecified") {
-    missing.push("Budget not stated");
-  } else if (budget.kind === "quantified") {
-    earned += 10;
-    evidence.push(`Specific budget stated: ${input.budget.trim()}`);
-  } else {
-    earned += 5;
-    evidence.push("Budget discussed but not quantified");
-    missing.push("No specific budget figure");
-  }
+  if (budget.kind === "quantified") { earned += 10; evidence.push(`Specific budget stated: ${input.budget.trim()}`); }
+  else if (budget.kind === "described") { earned += 5; evidence.push("Budget discussed but not quantified"); missing.push("No specific budget figure"); }
+  else { missing.push("Budget not stated"); }
 
   if (FINANCE_FULL_RE.test(message)) { earned += 10; evidence.push("Financing readiness evidenced (pre-approval / funds ready)"); }
   else if (FINANCE_PARTIAL_RE.test(message)) { earned += 5; evidence.push("Financing mentioned but not confirmed"); missing.push("Financing approval not confirmed"); }
-  else missing.push("Financing readiness not established");
+  else missing.push("Financing readiness not established (unconfirmed, not a weakness)");
 
   return dimension("budget", "Budget readiness", earned, evidence, missing);
 }
 
-// Engagement and commitment (10). Uses only recorded actions. A scheduled visit
-// is a confirmed commitment (10); a qualified lead shows recorded engagement but
-// not yet a visit (5). Message-based clues are judged on affirmative clauses so
-// "can't visit" does not earn credit. We never assume a reply or booking happened.
+// Engagement and commitment (10). Uses only recorded actions. The recorded
+// status and the customer message are distinct evidence and are summed, capped
+// at the dimension max: a qualified lead who also asks for a visit earns full
+// marks, while a scheduled visit already maxes the dimension and the message is
+// not counted a second time. Message-based clues are judged on affirmative
+// clauses so "can't visit" does not earn credit. A reply or booking is never
+// assumed.
 function engagementDimension(input: LeadInput, status?: LeadStatus): ScoreDimension {
   if (status === "Visit scheduled") {
     return dimension("engagement", "Engagement & commitment", 10, ["Recorded commitment (status: Visit scheduled)"], []);
   }
-  if (status === "Qualified") {
-    return dimension("engagement", "Engagement & commitment", 5, ["Recorded engagement (status: Qualified)"], []);
-  }
+
+  const evidence: string[] = [];
+  let earned = status === "Qualified" ? 5 : 0;
+  if (status === "Qualified") evidence.push("Recorded engagement (status: Qualified)");
+
   const affirmative = clauses(input.message).filter((part) => !NEGATED_ENGAGEMENT_RE.test(part));
-  if (affirmative.some((part) => COMMITMENT_MSG_RE.test(part))) return dimension("engagement", "Engagement & commitment", 10, ["Customer confirmed a next step"], []);
-  if (affirmative.some((part) => NEXT_STEP_MSG_RE.test(part))) return dimension("engagement", "Engagement & commitment", 5, ["Customer requested a concrete next step"], []);
-  return dimension("engagement", "Engagement & commitment", 0, [], ["No confirmed site visit or next-step commitment recorded"]);
+  if (affirmative.some((part) => COMMITMENT_MSG_RE.test(part))) { earned += 10; evidence.push("Customer confirmed a next step"); }
+  else if (affirmative.some((part) => NEXT_STEP_MSG_RE.test(part))) { earned += 5; evidence.push("Customer requested a concrete next step"); }
+
+  if (earned === 0) return dimension("engagement", "Engagement & commitment", 0, [], ["No confirmed site visit or next-step commitment recorded"]);
+  return dimension("engagement", "Engagement & commitment", earned, evidence, []);
 }
 
 function summarize(priority: Priority, score: number, positives: string[], missing: string[]): string {

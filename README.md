@@ -88,14 +88,14 @@ Scoring is **deterministic application logic** (`lib/scoring.ts`) and is never c
 | Dimension | Max | What it reads (from recorded data only) |
 | --- | ---: | --- |
 | Buying timeline | 25 | The recorded timeline bucket (`Within 30 days` → 25, down to `Just exploring / no rush` → 0). LLM-stated urgency is not used. |
-| Purchase intent | 25 | Keyword tiers in the customer message (explicit readiness → 25, comparing/shortlisting → 18, general interest → 10, browsing → 3), evaluated per clause so a negation in one sentence does not mask a real signal in another. |
-| Requirement clarity | 20 | Four 5-point components: location, property type/configuration, budget specified, and preferences/constraints. |
-| Budget readiness | 20 | Budget specificity (specific figure, or discussed-but-not-quantified) plus explicit financing readiness (pre-approval, funds ready, etc.). |
-| Engagement & commitment | 10 | Recorded commitment only: `Visit scheduled` → 10, `Qualified` → 5, or a message-based next-step request. A negated next step ("I can't visit") earns nothing. |
+| Purchase intent | 25 | Independent, non-overlapping evidence signals in the customer message, summed with partial credit: explicit readiness (25) or a concrete booking/payment action (12); comparing/shortlisting (18) and booking can combine up to the 25 cap. General interest (10) and browsing (3) apply only when no strong signal is present, and browsing caps the score. Each phrase is counted once, and a negation in one clause does not mask a signal in another. |
+| Requirement clarity | 20 | Four independently-scored components with partial credit: location; configuration (a stated size such as `3 BHK` scores higher than a bare type word); budget (a figure scores higher than a budget only discussed); and preferences/constraints. A property type alone never earns full clarity. |
+| Budget readiness | 20 | Budget specificity (a specific figure, or a budget discussed but not quantified) plus explicit financing readiness (pre-approval, funds ready, etc.), scored as separate evidence. Missing financing is reported as unconfirmed and is never treated as financial weakness. |
+| Engagement & commitment | 10 | Recorded status and the customer message are distinct evidence, summed and capped at 10: `Visit scheduled` → 10, `Qualified` → 5, plus a message-based confirmed next step (10) or a concrete next-step request (5). A negated next step ("I can't visit") earns nothing and is never assumed. |
 
 **Priority bands:** `Act Now` **80–100** · `Follow Up` **50–79** · `Nurture` **0–49** (`priorityForScore`).
 
-The score is a **prioritisation heuristic, not a probability of conversion and not a qualification status**. A high score means "work this lead sooner", not "this lead will close". The workspace shows the score out of 100, the priority label, each dimension's earned/max, the positive signals, and the missing qualification information, so the ranking is inspectable rather than opaque.
+The score is a **prioritisation heuristic, not a probability of conversion and not a qualification status**. A high score means "work this lead sooner", not "this lead will close". The workspace shows the score out of 100, the priority label, and each dimension's earned/max alongside its supporting evidence or missing details, so the ranking is inspectable rather than opaque.
 
 ## Architecture
 

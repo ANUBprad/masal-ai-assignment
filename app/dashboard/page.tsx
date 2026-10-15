@@ -474,6 +474,7 @@ function OverviewTab({ lead }: { lead: Lead }) {
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--border-soft)]" role="img" aria-label={`${dim.label}: ${dim.earned} of ${dim.max}`}>
               <div className="h-full rounded-full" style={{ width: `${dim.max ? (dim.earned / dim.max) * 100 : 0}%`, background: PRIORITY_BAR[lead.priority] }} />
             </div>
+            <p className="mt-1 text-[11px] leading-4 text-[var(--text-faint)]">{dim.evidence.length ? dim.evidence.join(" · ") : (dim.missing[0] ?? "No supporting evidence recorded")}</p>
           </div>)}
         </div>
         <p className="mt-3 border-t border-[var(--border-soft)] pt-3 text-xs leading-5 text-[var(--text-faint)]">{PRIORITY_NOTE}</p>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DIMENSION_MAX, priorityForScore, scoreLead, type LeadScore } from "../lib/scoring.ts";
+import { DIMENSION_MAX, PRIORITY_THRESHOLDS, SCORE_MAX, priorityForScore, scoreLead, type LeadScore } from "../lib/scoring.ts";
 import type { LeadInput, ScoreDimensionKey } from "../types/lead.ts";
 
 function dim(result: LeadScore, key: ScoreDimensionKey) {
@@ -217,4 +217,118 @@ test("the Rohan Sharma lead scores 70/100 Follow Up under the documented rubric"
   assert.equal(result.score, 70);
   assert.equal(result.priority, "Follow Up");
   assert.equal(result.score, result.dimensions.reduce((sum, item) => sum + item.earned, 0));
+});
+
+// ---------------------------------------------------------------------------
+// Graduated component scoring. These lock in the finer, partial-credit rules that
+// replace the former all-or-nothing buckets, so leads that used to collapse onto
+// the same total are now separated.
+// ---------------------------------------------------------------------------
+
+const bare = (overrides: Partial<LeadInput>): LeadInput => ({
+  name: "", location: "", propertyRequirement: "", budget: "",
+  timeline: "Just exploring / no rush", message: "", ...overrides
+});
+
+// 13. Requirement clarity gives partial credit and never maxes on a bare type.
+test("clarity separates a specific configuration from a bare property type", () => {
+  const specific = dim(scoreLead(bare({ propertyRequirement: "3 BHK apartment" })), "clarity");
+  const generic = dim(scoreLead(bare({ propertyRequirement: "apartment" })), "clarity");
+  const none = dim(scoreLead(bare({})), "clarity");
+  assert.ok(specific.earned > generic.earned, "a stated configuration must outscore a bare type");
+  assert.ok(generic.earned > none.earned, "a bare type must still outscore no requirement");
+  assert.ok(specific.earned < specific.max, "a property type alone must never earn full clarity");
+});
+
+// 14. A budget discussed but not quantified earns less clarity than a figure.
+test("clarity separates a quantified budget from one that is only discussed", () => {
+  const quantified = dim(scoreLead(bare({ location: "Whitefield", propertyRequirement: "3 BHK", budget: "₹1 Cr" })), "clarity");
+  const described = dim(scoreLead(bare({ location: "Whitefield", propertyRequirement: "3 BHK", budget: "flexible" })), "clarity");
+  assert.equal(quantified.earned, 15);
+  assert.equal(described.earned, 13);
+  assert.ok(described.earned < quantified.earned);
+});
+
+// 15. A concrete booking/payment action is distinct intent evidence with partial credit.
+test("intent awards a concrete booking action a distinct partial score", () => {
+  const result = scoreLead(bare({ message: "Please book a 3 BHK for us and we will pay the token." }));
+  assert.equal(dim(result, "intent").earned, 12);
+  assert.ok(dim(result, "intent").evidence.some((item) => /booking/i.test(item)));
+});
+
+// 16. Combined strong evidence is summed, then capped at the dimension maximum.
+test("intent sums distinct strong evidence but never exceeds 25", () => {
+  const result = scoreLead(bare({ message: "I'm comparing a few projects and will book a unit this week." }));
+  assert.equal(dim(result, "intent").earned, 25);
+  assert.equal(dim(result, "intent").earned, dim(result, "intent").max);
+});
+
+// 17. Engagement sums recorded status and a requested next step, capped at 10.
+test("engagement stacks recorded status with a requested next step", () => {
+  const message = "Hi, please share the pricing. Would like to visit this weekend.";
+  const qualified = scoreLead(bare({ message }), { status: "Qualified" });
+  const none = scoreLead(bare({ message }));
+  assert.equal(dim(qualified, "engagement").earned, 10);
+  assert.equal(dim(none, "engagement").earned, 5);
+});
+
+// 18. An info request counts once: it drives engagement, not purchase intent.
+test("a floor-plan request is not double counted across intent and engagement", () => {
+  const result = scoreLead(bare({ message: "Please send me the floor plans." }));
+  assert.equal(dim(result, "intent").earned, 0, "a document request is not purchase intent");
+  assert.equal(dim(result, "engagement").earned, 5, "a document request is a concrete next step");
+});
+
+// 19. Conflicting evidence: a real intent signal survives a negation elsewhere,
+//     and the negated visit is not assumed to have happened.
+test("a negation in one clause does not cancel intent, and a negated visit earns nothing", () => {
+  const result = scoreLead(bare({ message: "Ready to buy, but I can't visit this weekend." }));
+  assert.equal(dim(result, "intent").earned, 25);
+  assert.equal(dim(result, "engagement").earned, 0);
+});
+
+// 20. A budget-only lead scores on the budget alone and does not fake readiness.
+test("a budget-only lead earns budget points, reports missing financing, and stays Nurture", () => {
+  const result = scoreLead(bare({ budget: "₹1.5 Cr" }));
+  assert.equal(dim(result, "budget").earned, 10, "a stated figure earns without financing evidence");
+  assert.ok(dim(result, "budget").missing.some((item) => /financ/i.test(item)), "missing financing must be reported");
+  assert.equal(dim(result, "intent").earned, 0);
+  assert.equal(dim(result, "timeline").earned, 0);
+  assert.equal(result.score, 15);
+  assert.equal(result.priority, "Nurture");
+});
+
+// 21. Urgency alone never reaches the top band without intent or financing.
+test("an urgent but low-evidence lead stays out of the Act Now band", () => {
+  const result = scoreLead(bare({ location: "Whitefield", propertyRequirement: "3 BHK", budget: "₹1.2 Cr", timeline: "Within 30 days", message: "Hi there." }));
+  assert.equal(dim(result, "timeline").earned, 25);
+  assert.equal(dim(result, "intent").earned, 0);
+  assert.equal(result.priority, "Follow Up");
+  assert.ok(result.score < PRIORITY_THRESHOLDS.actNow);
+});
+
+// 22. Every component is a whole number within its maximum, and the total is their sum.
+test("component scores are integer, bounded, and additive across mixed evidence", () => {
+  const samples: LeadInput[] = [
+    bare({}),
+    bare({ location: "X", propertyRequirement: "3 BHK", budget: "₹1 Cr", timeline: "31–60 days", message: "Looking for options and comparing projects." }),
+    bare({ location: "Y", propertyRequirement: "villa", budget: "flexible", timeline: "Over 90 days", message: "Ready to buy, pre-approval done, keen to visit." }),
+    bare({ budget: "₹90 lakh", message: "Please send the brochure." })
+  ];
+  for (const input of samples) {
+    const result = scoreLead(input);
+    for (const item of result.dimensions) {
+      assert.ok(Number.isInteger(item.earned), `${item.key} must be an integer`);
+      assert.ok(item.earned >= 0 && item.earned <= item.max, `${item.key} within 0..max`);
+    }
+    assert.equal(result.score, result.dimensions.reduce((sum, item) => sum + item.earned, 0));
+    assert.ok(Number.isInteger(result.score) && result.score >= 0 && result.score <= SCORE_MAX);
+    assert.equal(result.priority, priorityForScore(result.score));
+  }
+});
+
+// 23. Identical input with partial evidence is still deterministic.
+test("scoring is deterministic for a partially-evidenced lead", () => {
+  const lead = bare({ location: "Whitefield", propertyRequirement: "3 BHK", budget: "flexible", timeline: "61–90 days", message: "Comparing a few options; would like a call." });
+  assert.deepEqual(scoreLead(lead), scoreLead(lead));
 });
