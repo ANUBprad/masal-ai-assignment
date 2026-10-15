@@ -86,10 +86,10 @@ Reading the diagram: the browser is the untrusted input source and never holds c
 
 | Path | Responsibility |
 | --- | --- |
-| `app/page.tsx` | Static landing page (server component) for `/`: header, hero, "how it works" steps, final CTA, and footer with the legal links. Copy and the dashboard route live in `lib/landing.ts`. |
-| `app/dashboard/page.tsx` | Client workspace (`"use client"`) at `/dashboard`: lead list, intake form, per-lead analysis panel, copilot chat, call brief, status, search/filter, stats, and the light/dark theme toggle. Owns all lead state and `localStorage` persistence. |
-| `app/layout.tsx` | Root layout, page metadata, and a small inline script that applies the saved theme class before paint (no flash). |
-| `app/globals.css` | Tailwind layers plus the light/dark design tokens (`:root` / `.dark` CSS variables) that the landing page and `app/dashboard/page.tsx` consume. |
+| `app/page.tsx` | Static landing page (server component) for `/`: header, hero, "how it works" steps, and footer with the legal links. Copy and the dashboard route live in `lib/landing.ts`. |
+| `app/dashboard/page.tsx` | Client workspace (`"use client"`) at `/dashboard`: lead list, intake form, per-lead analysis panel, copilot chat, call brief, status, search/filter, and stats. Owns all lead state and `localStorage` persistence. |
+| `app/layout.tsx` | Root layout, page metadata, and the font variables. |
+| `app/globals.css` | Tailwind layers plus the single pure-black design tokens (`:root` CSS variables) that the landing page and `app/dashboard/page.tsx` consume. |
 | `app/dashboard/layout.tsx` | Server layout for `/dashboard`: sets the route metadata (`title: "Dashboard"`) and `noindex` (the workspace is an app screen), then renders the client workspace. |
 | `app/legal-shell.tsx` | Shared shell for the static legal pages (header, footer, section styling). |
 | `app/privacy/page.tsx`, `app/terms/page.tsx` | Static legal copy, reached from the landing-page footer. |
@@ -329,7 +329,7 @@ Unit tests never call a real provider API. `npm run typecheck` (`tsc --noEmit`),
 - **`fetch` instead of provider SDKs.** A small, explicit integration with per-request keys shared across both providers, but no SDK-level retries/streaming.
 - **Deterministic score alongside the LLM.** Stable, testable ranking from explicit rules (keyword/timeline/field heuristics) applied to recorded data, with a visible per-dimension breakdown — not a learned model, and not the LLM's judgement. A high score is a prioritisation hint, not proof the lead is sales-qualified or likely to close.
 - **Client-supplied analysis context.** The chat accepts the lead's analysis from the client for grounding; the server validates its shape but cannot prove it originated from a prior server call. It is a grounding aid, not a trust source.
-- **CSS-variable theming.** Light/dark is driven by a `:root`/`.dark` token set and a `class` strategy on `<html>`, toggled client-side with `localStorage`; there is no server-known theme, so the initial class is applied by a small inline script to avoid a flash.
+- **CSS-variable design tokens.** The product is always black: a single `:root` set (background, surfaces, borders, text, one brand accent) is consumed by the landing page, dashboard, and legal pages. There is no light/dark duality or theme toggle.
 - **No auth/tenancy/audit.** Suitable for a time-boxed demo; not for real customer data.
 
 ## 14. Future improvements (not implemented)

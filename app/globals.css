@@ -2,92 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Single visual system: pure black foundation, one restrained brand accent
+   (the favicon lime). No light/dark duality — the product is always black. */
 :root {
-  color-scheme: light;
-  --bg: #f6f8f5;
-  --surface: #ffffff;
-  --surface-muted: #f8faf7;
-  --surface-inset: #fbfcfa;
-  --accent-soft: #e9f3e4;
-  --hover: #f4f7f2;
-  --text: #14251d;
-  --text-soft: #536057;
-  --text-muted: #5b6960;
-  --text-faint: #687469;
-  --border: #e5eae5;
-  --border-soft: #edf0ec;
-  --border-input: #dfe6dd;
-  --border-strong: #9bb59c;
-  --brand: #1d5d43;
-  --brand-strong: #164a35;
-  --brand-text: #1d5d43;
-  --on-brand: #ffffff;
-  --ink-solid: #14251d;
-  --on-ink: #ffffff;
-  --on-lime: #14251d;
-  --lime: #d7f36a;
-  --positive: #52725a;
-  --positive-strong: #477f4e;
-  --hot-fg: #ab4a22;
-  --hot-bg: #fff0e8;
-  --hot-bar: #e88352;
-  --warm-fg: #7c5a0f;
-  --warm-bg: #fff7df;
-  --warm-bar: #e3bb4d;
-  --cold-fg: #5e6c64;
-  --cold-bg: #edf0ed;
-  --cold-bar: #aeb8af;
-  --danger-fg: #b14b32;
-  --danger-bg: #fff1ed;
-  --overlay-bg: rgba(16, 33, 25, .4);
-  --header-bg: rgba(255, 255, 255, .88);
-  --focus-ring: rgba(29, 93, 67, .12);
-  --shadow-panel: 0 1px 2px rgba(16, 33, 25, .05), 0 1px 3px rgba(16, 33, 25, .04);
-  --shadow-pop: 0 12px 32px -12px rgba(16, 33, 25, .28), 0 2px 8px rgba(16, 33, 25, .08);
-}
-
-.dark {
   color-scheme: dark;
-  --bg: #0e1512;
-  --surface: #161f1a;
-  --surface-muted: #1b2621;
-  --surface-inset: #1e2b24;
-  --accent-soft: #1f3328;
-  --hover: #223029;
-  --text: #e8efe9;
-  --text-soft: #b6c3ba;
-  --text-muted: #93a29a;
-  --text-faint: #8b998f;
-  --border: #2a3830;
-  --border-soft: #24312a;
-  --border-input: #314036;
-  --border-strong: #3f6b52;
-  --brand: #2f7d5c;
-  --brand-strong: #3f9d76;
-  --brand-text: #7fd0a4;
-  --on-brand: #ffffff;
-  --ink-solid: #26332c;
-  --on-ink: #eef4ef;
-  --on-lime: #14251d;
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #111111;
+  --surface-muted: #0a0a0a;
+  --surface-inset: #111111;
+  --accent-soft: rgba(215, 243, 106, .08);
+  --hover: #141414;
+  --text: #f5f5f5;
+  --text-soft: #a3a3a3;
+  --text-muted: #737373;
+  --text-faint: #737373;
+  --border: #262626;
+  --border-soft: #1a1a1a;
+  --border-input: #262626;
+  --border-strong: #404040;
+  --brand: #d7f36a;
+  --brand-strong: #c4e058;
+  --brand-text: #d7f36a;
+  --on-brand: #050505;
+  --on-accent: #050505;
+  --ink-solid: #111111;
+  --on-ink: #f5f5f5;
+  --on-lime: #050505;
   --lime: #d7f36a;
-  --positive: #7fc98f;
-  --positive-strong: #8ad39a;
-  --hot-fg: #f0a081;
-  --hot-bg: #3a2419;
-  --hot-bar: #e88352;
-  --warm-fg: #e0c06a;
-  --warm-bg: #3a3115;
-  --warm-bar: #e3bb4d;
-  --cold-fg: #b6c0b8;
-  --cold-bg: #242c26;
-  --cold-bar: #aeb8af;
-  --danger-fg: #f0a08c;
-  --danger-bg: #3a201a;
-  --overlay-bg: rgba(5, 10, 7, .6);
-  --header-bg: rgba(22, 31, 26, .88);
-  --focus-ring: rgba(127, 208, 164, .2);
+  --positive: #a3a3a3;
+  --positive-strong: #d7f36a;
+  --hot-fg: #f5f5f5;
+  --hot-bg: #1a1a1a;
+  --hot-bar: #d7f36a;
+  --warm-fg: #a3a3a3;
+  --warm-bg: #161616;
+  --warm-bar: #737373;
+  --cold-fg: #737373;
+  --cold-bg: #111111;
+  --cold-bar: #404040;
+  --danger-fg: #f87171;
+  --danger-bg: rgba(248, 113, 113, .10);
+  --overlay-bg: rgba(0, 0, 0, .72);
+  --header-bg: #000000;
+  --focus-ring: rgba(215, 243, 106, .18);
   --shadow-panel: none;
-  --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, .7), 0 2px 10px rgba(0, 0, 0, .35);
+  --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, .85), 0 2px 10px rgba(0, 0, 0, .5);
 }
 
 @layer base {
@@ -98,7 +58,6 @@
     color: var(--text);
     font-family: var(--font-dm-sans), system-ui, sans-serif;
     line-height: 1.5;
-    transition: background-color .2s ease, color .2s ease;
   }
   h1,h2,h3,h4 {
     font-family: var(--font-manrope), var(--font-dm-sans), sans-serif;
@@ -110,7 +69,7 @@
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; opacity: .55; }
   :where(button, a, [role="button"]):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-  ::selection { background: #d7f36a; color: #14251d; }
+  ::selection { background: var(--brand); color: var(--on-brand); }
   * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
   ::-webkit-scrollbar { width: 11px; height: 11px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border: 3px solid transparent; background-clip: content-box; border-radius: 999px; }
@@ -120,7 +79,7 @@
 @layer components {
   .panel {
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--surface);
     box-shadow: var(--shadow-panel);
   }
@@ -129,7 +88,7 @@
     font-weight: 600;
     letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--text-faint);
+    color: var(--text-muted);
   }
   .field-label {
     display: block;

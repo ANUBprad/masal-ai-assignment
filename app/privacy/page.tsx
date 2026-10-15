@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         <p>
           All of this data is stored only in your own browser&rsquo;s <strong>localStorage</strong> (the key{" "}
           <code className="rounded bg-[var(--surface-inset)] px-1 py-0.5 text-[0.85em]">masal-ai-leads-v1</code>, plus a
-          schema version and your light/dark theme preference). It stays on your device and browser: it is not synced,
+          schema version). It stays on your device and browser: it is not synced,
           not shared with other users, and not saved to a server database. There is no server-side data store for lead
           content.
         </p>
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
       <Section heading="Cookies and analytics">
         <p>
           The app sets no cookies and includes no analytics, advertising, or tracking scripts. It uses only essential
-          browser storage (the lead data and theme preference above). Because nothing here is non-essential tracking, no
+          browser storage (the lead data above). Because nothing here is non-essential tracking, no
           consent banner is shown.
         </p>
       </Section>
@@ -85,7 +85,7 @@ export default function PrivacyPage() {
             github.com/ANUBprad/masal-ai-assignment
           </a>.
         </p>
-        <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-xs text-[var(--text-muted)]">
+        <p className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs text-[var(--text-muted)]">
           Owner confirmation needed: if this is published under a legal entity, add the entity name, a contact address,
           and any jurisdiction-specific notices. None are asserted here because none are configured in the repository.
         </p>

@@ -62,7 +62,7 @@ environment inside Route Handlers and attached only to the outbound provider req
 
 - Semantic landmarks (`main`, `header`, `footer`, `nav`, `h1`/`h2`/`h3`), a visible-content skip link on every page, labelled controls, and accessible link text.
 - Focus styles are defined globally (`:focus-visible`), so keyboard navigation is visible.
-- Layouts are responsive (stacked on mobile, row on desktop) and use the existing light/dark tokens, which meet contrast for body and button text.
+- Layouts are responsive (stacked on mobile, row on desktop) and use the single pure-black token set, which meets contrast for body and button text.
 - `prefers-reduced-motion` is honoured (`app/globals.css`); the landing page introduces no animation.
 
 ## 6. Known limitations (not implemented)

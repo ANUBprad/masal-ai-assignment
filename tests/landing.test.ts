@@ -21,7 +21,7 @@ test("the workflow section lists the three shipped steps", () => {
   assert.equal(WORKFLOW_STEPS.length, 3);
   assert.deepEqual(
     WORKFLOW_STEPS.map((step) => step.title),
-    ["Capture a lead", "Understand readiness", "Take the next step"]
+    ["Capture", "Qualify", "Follow through"]
   );
   for (const step of WORKFLOW_STEPS) assert.ok(step.body.length > 0);
 });

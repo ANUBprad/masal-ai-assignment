@@ -13,7 +13,6 @@ Masal AI helps a salesperson triage inbound leads quickly:
 - Ask follow-up questions in a chat that is grounded in both the lead's details and its existing AI analysis.
 - Rank and filter a pipeline of leads with a transparent, deterministic 100-point score (Act Now / Follow Up / Nurture) and a visible breakdown.
 - Generate a short call brief before picking up the phone.
-- Switch between light and dark themes (light by default; the choice is remembered in the browser).
 
 The product is a Next.js application with a static landing page at `/`, a client-side workspace at `/dashboard`, and server-side API routes. It is a focused demo, not a production system — see [Limitations](#ai-behaviour-and-limitations) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -224,7 +223,6 @@ The tests cover the deterministic and safety-critical pieces: lead validation an
 - [x] Multiple leads with a deterministic 100-point score and Act Now / Follow Up / Nurture prioritization.
 - [x] Scan-friendly presentation of AI outputs.
 - [x] Additional Call Brief feature.
-- [x] Light/dark theme toggle.
 - [x] Multi-key rotation and provider failover.
 - [x] Tests, typecheck, lint, and build wired into CI.
 - [x] Server-side credential handling (no key on the client).

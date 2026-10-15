@@ -7,20 +7,20 @@ export const WORKFLOW_ANCHOR = "how-it-works";
 
 export const HERO = {
   title: "Turn property inquiries into clear next steps.",
-  body: "Organize property leads, understand buyer intent, identify open questions, and prepare your next sales conversation in one workspace."
+  body: "Understand buyer requirements, prioritize follow-ups, and prepare better sales conversations in one focused workspace."
 } as const;
 
 export const WORKFLOW_STEPS = [
   {
-    title: "Capture a lead",
-    body: "Record the buyer's requirements, budget, location, and timeline."
+    title: "Capture",
+    body: "Record the buyer's needs, budget, location, and timeline."
   },
   {
-    title: "Understand readiness",
-    body: "Review the explainable priority score, known facts, and missing information."
+    title: "Qualify",
+    body: "Review sales priority, known facts, and what information is still missing."
   },
   {
-    title: "Take the next step",
-    body: "Use AI-generated analysis, a Call Brief, and Sales Copilot to prepare a relevant follow-up."
+    title: "Follow through",
+    body: "Prepare the next conversation with AI analysis, a Call Brief, and Sales Copilot."
   }
 ] as const;

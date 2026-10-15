@@ -1,4 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Masal AI">
-  <rect width="32" height="32" rx="8" fill="#14251d"/>
+  <rect width="32" height="32" rx="8" fill="#000000"/>
   <path d="M16 8.2 7.6 15.1V24h5.7v-5.1h5.4V24h5.7v-8.9z" fill="#d7f36a"/>
 </svg>

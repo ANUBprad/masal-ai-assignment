@@ -38,15 +38,17 @@ export interface ScoreContext {
 // ---------------------------------------------------------------------------
 export const PRIORITIES: Priority[] = ["Act Now", "Follow Up", "Nurture"];
 export const PRIORITY_THRESHOLDS = { actNow: 80, followUp: 50 } as const;
+// Display-only. A single brand accent is reserved for the top priority; the
+// other labels stay monochrome so priority reads through weight, not a palette.
 export const PRIORITY_STYLES: Record<Priority, string> = {
-  "Act Now": "bg-[var(--hot-bg)] text-[var(--hot-fg)]",
-  "Follow Up": "bg-[var(--warm-bg)] text-[var(--warm-fg)]",
-  "Nurture": "bg-[var(--cold-bg)] text-[var(--cold-fg)]"
+  "Act Now": "text-[var(--brand-text)]",
+  "Follow Up": "text-[var(--text-soft)]",
+  "Nurture": "text-[var(--text-muted)]"
 };
 export const PRIORITY_BAR: Record<Priority, string> = {
-  "Act Now": "var(--hot-bar)",
-  "Follow Up": "var(--warm-bar)",
-  "Nurture": "var(--cold-bar)"
+  "Act Now": "var(--brand)",
+  "Follow Up": "var(--text-soft)",
+  "Nurture": "var(--text-muted)"
 };
 export const PRIORITY_NOTE =
   "Sales priority is a provisional, rule-based estimate of who to work first — not a qualification status or a probability of closing.";

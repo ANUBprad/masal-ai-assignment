@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, Manrope } from "next/font/google";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -28,17 +28,13 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true }
 };
 
-// Applied before paint to avoid a light/dark flash. Light stays the default
-// for users with no saved preference.
-const themeScript = `try{var t=localStorage.getItem('masal-ai-theme');if(t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}`;
+// The product is always black; this only tints the mobile browser chrome.
+export const viewport: Viewport = { themeColor: "#000000" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${manrope.variable}`} suppressHydrationWarning>
-      <body>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        {children}
-      </body>
+    <html lang="en" className={`${dmSans.variable} ${manrope.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

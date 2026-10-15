@@ -65,7 +65,7 @@ export default function TermsPage() {
           particular purpose. To the extent permitted by law, the project owner is not liable for any loss arising from
           use of the demo.
         </p>
-        <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-xs text-[var(--text-muted)]">
+        <p className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs text-[var(--text-muted)]">
           Owner/legal review needed: a governing jurisdiction, legal entity, and any enforceable liability terms must be
           added by the owner before this is used outside an evaluation context. None are asserted here because none are
           configured in the repository.
