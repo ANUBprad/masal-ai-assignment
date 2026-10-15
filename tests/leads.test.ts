@@ -158,3 +158,17 @@ test("creating the first genuine lead works from the default workspace", () => {
   const reloaded = loadStoredLeads(readFrom({ [LEADS_STORAGE_KEY]: JSON.stringify(afterCreate) }));
   assert.deepEqual(reloaded.filter((lead) => !isDemoLead(lead)).map((lead) => lead.id), ["first-lead"]);
 });
+
+// Fix 3 (task): a lead's name is stored and reloaded byte-for-byte. The "rr"
+// report traced to the value that was submitted, not to any transform on this
+// path, so this locks the contract: creation, persistence, and selection never
+// alter the customer's name.
+test("a customer name is preserved exactly through creation, persistence, and selection", () => {
+  const name = "Rohan Sharma (Dummy)";
+  const created = makeLead({ id: "lead-name-1", name });
+  const reloaded = parseStoredLeads(JSON.stringify([created]));
+  assert.equal(reloaded[0].name, name);
+  assert.equal(resolveSelectedLead(reloaded, "lead-name-1")?.name, name);
+  const spaced = makeLead({ id: "lead-name-2", name: "Rohan   Kumar Sharma" });
+  assert.equal(parseStoredLeads(JSON.stringify([spaced]))[0].name, "Rohan   Kumar Sharma");
+});

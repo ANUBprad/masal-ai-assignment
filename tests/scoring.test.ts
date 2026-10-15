@@ -195,3 +195,26 @@ test("the Rahul lead is scored by the rubric, not forced into Act Now", () => {
   assert.equal(result.priority, "Follow Up");
   assert.ok(result.missing.some((item) => /financ/i.test(item)));
 });
+
+// Fix 4 (task): the Rohan Sharma lead from QA scored 70/100. That is correct
+// under the documented rubric — a within-30-days buyer who is generally
+// interested and asked about a visit, with a stated figure but no financing
+// evidence: 25 + 10 + 20 + 10 + 5 = 70 → Follow Up. This test locks that in so
+// a future weight change is a deliberate, visible decision.
+test("the Rohan Sharma lead scores 70/100 Follow Up under the documented rubric", () => {
+  const rohan: LeadInput = {
+    name: "Rohan Sharma (Dummy)", location: "Whitefield, Bengaluru",
+    propertyRequirement: "3 BHK apartment", budget: "₹1.2 Cr",
+    timeline: "Within 30 days",
+    message: "Hi, I'm looking for a 3 BHK near ITPL, budget around ₹1.2 crore. Would like to visit a few options this weekend."
+  };
+  const result = scoreLead(rohan);
+  assert.equal(dim(result, "timeline").earned, 25);
+  assert.equal(dim(result, "intent").earned, 10);
+  assert.equal(dim(result, "clarity").earned, 20);
+  assert.equal(dim(result, "budget").earned, 10);
+  assert.equal(dim(result, "engagement").earned, 5);
+  assert.equal(result.score, 70);
+  assert.equal(result.priority, "Follow Up");
+  assert.equal(result.score, result.dimensions.reduce((sum, item) => sum + item.earned, 0));
+});

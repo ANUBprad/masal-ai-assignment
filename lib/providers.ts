@@ -11,7 +11,7 @@
 //
 // Cooldown state is in-memory and therefore per serverless instance. See
 // docs/ARCHITECTURE.md for the caveats (per-instance, reset on cold start).
-import { ANALYSIS_PROMPT, CALL_BRIEF_PROMPT, CHAT_PROMPT, analysisContext, leadContext, resolveCallBriefIdentity, resolveIdentityPlaceholders } from "./prompts.ts";
+import { ANALYSIS_PROMPT, CALL_BRIEF_PROMPT, CHAT_PROMPT, analysisContext, guardCallBrief, guardChatAnswer, guardSuggestedReply, leadContext, resolveAnalysisIdentity } from "./prompts.ts";
 import type { CallBrief, ChatMessage, LeadAnalysis, LeadInput, Priority } from "@/types/lead";
 
 export type ProviderName = "groq" | "gemini";
@@ -343,14 +343,18 @@ export async function analyzeLead(plan: ProviderKey[], lead: LeadInput): Promise
   // downstream consumers always receive arrays.
   const stringList = (value: unknown): string[] =>
     (Array.isArray(value) ? value : []).filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20);
-  return {
+  const analysis: LeadAnalysis = {
     ...result,
-    suggestedReply: resolveIdentityPlaceholders(result.suggestedReply).replace(/\bwe (?:do )?have\b[^.!?]*(?:gated communities|properties|apartments|inventory|options)[^.!?]*[.!?]/gi, "I will check current inventory and confirm which options match your requirements. "),
     knownFacts: stringList(result.knownFacts),
     inferences: stringList(result.inferences),
     unknowns: stringList(result.unknowns),
     dealRisks: stringList(result.dealRisks)
   };
+  // Resolve any [Your Name]-style tokens, then replace a suggested reply that
+  // asserts availability or a booked visit with a deterministic, safe reply —
+  // the prompt asks the model to avoid these, this makes the guarantee real.
+  const resolved = resolveAnalysisIdentity(analysis);
+  return { ...resolved, suggestedReply: guardSuggestedReply(resolved.suggestedReply, lead) };
 }
 
 export async function answerChat(
@@ -370,7 +374,9 @@ export async function answerChat(
     : leadContext(lead);
   const answer = await attemptWithFailover(plan, (candidate) =>
     generateText(candidate, `${CHAT_PROMPT}\n\nLead context:\n${context}\n\nConversation:\n${safeHistory}\nSalesperson's latest question:\n${question.slice(0, 5000)}`));
-  return resolveIdentityPlaceholders(answer);
+  // Resolve identity placeholders and soften any unsupported booking/availability
+  // claim the model still produced.
+  return guardChatAnswer(answer);
 }
 
 export async function generateCallBrief(plan: ProviderKey[], lead: LeadInput): Promise<CallBrief> {
@@ -382,9 +388,10 @@ export async function generateCallBrief(plan: ProviderKey[], lead: LeadInput): P
       typeof result.openingLine !== "string") {
     throw new AiFailure(MESSAGES.malformed, "malformed");
   }
-  // Even with the identity written into the prompt, a model can still echo a
-  // [Your Name]-style token; resolve it so the brief never shows a placeholder.
-  return resolveCallBriefIdentity(result);
+  // Even with the identity and grounding written into the prompt, a model can
+  // still echo a [Your Name]-style token or assert an unverified booking; resolve
+  // identity and soften unsupported claims so the brief is always safe.
+  return guardCallBrief(result);
 }
 
 export function safeAiError(error: unknown): string {

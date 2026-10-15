@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { answerChat, resetProviderStateForTests } from "../lib/providers.ts";
+import { SALESPERSON_NAME } from "../lib/site.ts";
 import type { LeadAnalysis, LeadInput } from "../types/lead.ts";
 
 const lead: LeadInput = {
@@ -57,4 +58,24 @@ test("chat works without an analysis and omits the analysis block", async () => 
   });
   assert.doesNotMatch(prompt, /Existing AI analysis/);
   assert.match(prompt, /Priya Sharma/);
+});
+
+// Fix 1 + Fix 2: whatever the model returns, the chat answer shown to the
+// salesperson has its identity resolved and unsupported booking claims softened.
+test("a chat answer is stripped of identity placeholders and unconfirmed-visit claims", async () => {
+  const plan = groqPlan();
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: true, status: 200, headers: new Headers(),
+    json: async () => ({ choices: [{ message: { content: "Sign as [Your Name]. Keep the site visit locked in." } }] })
+  })) as unknown as typeof fetch;
+  try {
+    const answer = await answerChat(plan, lead, [], "Draft a reply.");
+    assert.ok(answer.includes(SALESPERSON_NAME), "identity placeholder must be resolved");
+    assert.doesNotMatch(answer, /\[[^\]]*\]/);
+    assert.doesNotMatch(answer, /locked in/i);
+  } finally {
+    globalThis.fetch = original;
+    delete process.env.GROQ_API_KEY;
+  }
 });

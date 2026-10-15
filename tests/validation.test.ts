@@ -97,3 +97,13 @@ test("rejects missing or malformed analysis safely", () => {
   assert.equal(validateAnalysis({}), undefined);
   assert.equal(validateAnalysis({ summary: 42 }), undefined);
 });
+
+// Fix 3 (task): validateLead trims the edges but never rewrites the name itself,
+// so internal spaces and a parenthetical suffix survive intake unchanged.
+test("validateLead preserves a customer name exactly apart from edge whitespace", () => {
+  const lead = validateLead({
+    name: "  Rohan  Sharma (Dummy)  ", location: "Whitefield", propertyRequirement: "3 BHK",
+    budget: "₹1.2 Cr", timeline: "Within 30 days", message: "Would like to visit."
+  });
+  assert.equal(lead.name, "Rohan  Sharma (Dummy)");
+});
