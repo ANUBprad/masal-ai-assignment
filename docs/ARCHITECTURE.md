@@ -103,7 +103,7 @@ Reading the diagram: the browser is the untrusted input source and never holds c
 | `lib/guard.ts` | `HttpError` and `guard(request)`: applies the rate limit and resolves the ordered provider plan (`ProviderKey[]`). Pure of `next/server`. |
 | `lib/http.ts` | `errorResponse()` (status mapping + safe message) and `jsonBody()` (JSON-object parsing). Re-exports `guard`/`HttpError`. |
 | `lib/rate-limit.ts` | In-memory per-IP sliding-window limiter, `clientIp()` extraction, coarse quota warning. |
-| `lib/validation.ts` | `validateLead` (field shape, lengths, timeline allow-list), `validateAnalysis` (analysis shape + limits, returns `undefined` when invalid), `readJsonObject` (used by tests). |
+| `lib/validation.ts` | `validateLead` (field shape, lengths, timeline allow-list), `validateLeadFields` (the same rules as per-field messages, shared with the dashboard intake form), `validateAnalysis` (analysis shape + limits, returns `undefined` when invalid), `readJsonObject` (used by tests). |
 | `lib/scoring.ts` | `scoreLead` (deterministic 100-point engine with per-dimension breakdown) and `priorityForScore`: sales-priority labels (`Act Now`/`Follow Up`/`Nurture`), thresholds, and display styles. |
 | `lib/prompts.ts` | `leadContext`, `analysisContext`, and the three system prompts. |
 | `lib/providers.ts` | The provider layer: env key/model resolution with numbered-key rotation, an ordered provider plan, cooldown/failover (`attemptWithFailover`), the Groq and Gemini `fetch` transports (45s abort), `analyzeLead`/`answerChat`/`generateCallBrief`, `AiFailure`, and `safeAiError`. |
@@ -310,7 +310,8 @@ Tests use Node's built-in runner with `--experimental-strip-types` (`npm test`),
 
 | File | Covers |
 | --- | --- |
-| `tests/validation.test.ts` | `validateLead` (valid lead, invalid timeline), `readJsonObject`, and `validateAnalysis` (normalisation + length limits; safe rejection of missing/malformed input). |
+| `tests/validation.test.ts` | `validateLead` (valid lead, invalid timeline), `validateLeadFields` (accepts a genuine lead, flags each missing field), `readJsonObject`, and `validateAnalysis` (normalisation + length limits; safe rejection of missing/malformed input). |
+| `tests/dashboard.test.ts` | The Add Lead path and security policy: production CSP omits `'unsafe-eval'` and stays self-only, development allows the React Refresh `eval`, the CSP is applied to every route with the full header set, both Add Lead buttons open the same form (gated on `showForm`, closable), submission runs through `createLead`/`validateLeadFields`, and an accepted lead round-trips through the persisted store. |
 | `tests/scoring.test.ts` | `scoreLead` deterministic scoring: each dimension's rules, missing-data handling, flexible budgets, engagement (none vs confirmed visit), priority boundaries (0/49/50/79/80/100), determinism, breakdown/evidence, 0–100 invariants, and the realistic Rahul lead. |
 | `tests/rate-limit.test.ts` | Burst-then-block, per-IP isolation, window reset (with mocked timers), and `clientIp` parsing. |
 | `tests/http.test.ts` | `guard`: `429` when the IP is over the limit, `503` when no provider key is configured, and that it returns the provider plan. |

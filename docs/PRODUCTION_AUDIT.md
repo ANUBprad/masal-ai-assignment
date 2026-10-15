@@ -39,7 +39,11 @@ Set in `next.config.ts` for every response:
 
 `script-src` retains `'unsafe-inline'` because Next.js emits inline bootstrap/theme scripts and
 the pages are statically prerendered (a nonce would force dynamic rendering). This still blocks
-scripts from any other origin. Credentials never reach the browser: the keys are read from the
+scripts from any other origin. `'unsafe-eval'` is added only when `NODE_ENV` is not `production`
+(`buildSecurityHeaders` in `next.config.ts`): the development React Refresh runtime evaluates
+modules with `eval()`, so a policy without it aborts the client bundle under `next dev` and breaks
+client interactions such as Add Lead. Production builds never eval, so the deployed policy stays
+strict and unchanged. Credentials never reach the browser: the keys are read from the
 environment inside Route Handlers and attached only to the outbound provider request.
 
 ## 3. SEO and metadata

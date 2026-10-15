@@ -10,6 +10,7 @@ import type { ChatMessage, Lead, LeadInput, LeadScoreDetail, LeadStatus, Priorit
 import { BUYING_TIMELINES } from "@/types/lead";
 import { PRIORITIES, PRIORITY_BAR, PRIORITY_NOTE, PRIORITY_STYLES, scoreLead, type LeadScore } from "@/lib/scoring";
 import { LEADS_STORAGE_KEY, LEADS_VERSION, LEADS_VERSION_KEY, loadStoredLeads, pipelineStats, resolveSelectedLead } from "@/lib/leads";
+import { validateLeadFields } from "@/lib/validation";
 
 type Notice = { text: string; tone: "success" | "error" };
 type LeadSeed = Omit<Lead, "score" | "priority" | "scoreReasons" | "scoreDetail">;
@@ -37,15 +38,6 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "copilot", label: "Sales Copilot" }
 ];
 
-function validateForm(input: LeadInput): Partial<Record<keyof LeadInput, string>> {
-  const errors: Partial<Record<keyof LeadInput, string>> = {};
-  if (input.name.trim().length < 2) errors.name = "Enter a name between 2 and 120 characters.";
-  if (!input.location.trim()) errors.location = "Enter the lead's location.";
-  if (!input.propertyRequirement.trim()) errors.propertyRequirement = "Describe the property they want.";
-  if (!input.budget.trim()) errors.budget = "Enter a budget or indicate it is undecided.";
-  if (input.message.trim().length < 5) errors.message = "Add at least 5 characters of the enquiry.";
-  return errors;
-}
 const STATUSES: LeadStatus[] = ["New", "Contacted", "Visit scheduled", "Qualified", "Closed"];
 
 function makeId() { return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
@@ -130,7 +122,7 @@ export default function HomePage() {
   }
   async function createLead(event: React.FormEvent) {
     event.preventDefault();
-    const errors = validateForm(form);
+    const errors = validateLeadFields(form);
     setFormErrors(errors);
     if (Object.values(errors).some(Boolean)) return;
     const lead: Lead = withScore({

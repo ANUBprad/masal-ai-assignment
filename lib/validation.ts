@@ -25,6 +25,20 @@ export function validateLead(value: unknown): LeadInput {
   return result;
 }
 
+// Client-side counterpart to `validateLead` for the intake form: returns a
+// message per invalid field so the form can show inline errors, instead of
+// throwing on the first problem. Same rules as the API validator, so a lead the
+// form accepts also passes the server check.
+export function validateLeadFields(input: LeadInput): Partial<Record<keyof LeadInput, string>> {
+  const errors: Partial<Record<keyof LeadInput, string>> = {};
+  if (input.name.trim().length < 2) errors.name = "Enter a name between 2 and 120 characters.";
+  if (!input.location.trim()) errors.location = "Enter the lead's location.";
+  if (!input.propertyRequirement.trim()) errors.propertyRequirement = "Describe the property they want.";
+  if (!input.budget.trim()) errors.budget = "Enter a budget or indicate it is undecided.";
+  if (input.message.trim().length < 5) errors.message = "Add at least 5 characters of the enquiry.";
+  return errors;
+}
+
 export function validateAnalysis(value: unknown): LeadAnalysis | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const record = value as Record<string, unknown>;
