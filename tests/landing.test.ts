@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { DASHBOARD_PATH, HERO, WORKFLOW_ANCHOR, WORKFLOW_STEPS, previewDimensions } from "../lib/landing.ts";
-import { scoreLead } from "../lib/scoring.ts";
+import { DASHBOARD_PATH, HERO, PRIORITY_GUIDANCE, WORKFLOW_ANCHOR, WORKFLOW_STEPS, priorityBand, scoringFactors } from "../lib/landing.ts";
+import { PRIORITY_THRESHOLDS, SCORE_MAX, scoreLead } from "../lib/scoring.ts";
 
 // The test harness is the repository's framework-free `node --test` runner: it
 // strips types but not JSX, and there is no DOM. So the root route is verified
@@ -35,15 +35,28 @@ test("the workflow section lists the three shipped steps", () => {
   for (const step of WORKFLOW_STEPS) assert.ok(step.body.length > 0);
 });
 
-// The landing capability summary must be real: the five dimensions come from the
+// The landing scoring factors must be real: the labels and weights come from the
 // same deterministic engine the workspace uses, so the page can never show a
-// breakdown the app would not.
-test("the landing capability summary comes from the real scoring engine and sums to 100", () => {
-  const dimensions = previewDimensions();
-  assert.equal(dimensions.length, 5);
-  assert.equal(dimensions.reduce((sum, dim) => sum + dim.max, 0), 100);
+// factor or weight the rubric does not apply.
+test("the landing scoring factors come from the real engine and total 100", () => {
+  const factors = scoringFactors();
+  assert.equal(factors.length, 5);
+  assert.equal(factors.reduce((sum, factor) => sum + factor.points, 0), SCORE_MAX);
+  for (const factor of factors) assert.ok(factor.explanation.length > 0, `${factor.label} needs an explanation`);
   const engine = scoreLead({ name: "", location: "", propertyRequirement: "", budget: "", timeline: "Just exploring / no rush", message: "" });
-  assert.deepEqual(dimensions, engine.dimensions.map((dim) => ({ label: dim.label, max: dim.max })));
+  assert.deepEqual(
+    factors.map((factor) => [factor.key, factor.label, factor.points]),
+    engine.dimensions.map((dim) => [dim.key, dim.label, dim.max])
+  );
+});
+
+test("priority guidance bands are derived from the engine thresholds", () => {
+  const bands = Object.fromEntries(PRIORITY_GUIDANCE.map((item) => [item.priority, item.band]));
+  assert.equal(bands["Act Now"], `${PRIORITY_THRESHOLDS.actNow}–${SCORE_MAX}`);
+  assert.equal(bands["Follow Up"], `${PRIORITY_THRESHOLDS.followUp}–${PRIORITY_THRESHOLDS.actNow - 1}`);
+  assert.equal(bands["Nurture"], `0–${PRIORITY_THRESHOLDS.followUp - 1}`);
+  assert.deepEqual(PRIORITY_GUIDANCE.map((item) => item.priority), ["Act Now", "Follow Up", "Nurture"]);
+  assert.equal(priorityBand("Act Now"), bands["Act Now"]);
 });
 
 test("the root route renders the landing page, not the client dashboard", () => {
@@ -51,10 +64,12 @@ test("the root route renders the landing page, not the client dashboard", () => 
   assert.ok(!page.includes('"use client"'), "root page must stay a static server component");
   assert.ok(page.includes("DASHBOARD_PATH"), "root page must link to the dashboard route");
   assert.ok(page.includes("HERO.title"), "root page must render the hero headline");
-  assert.ok(page.includes("previewDimensions"), "root page must render the real capability summary");
+  assert.ok(page.includes("scoringFactors"), "root page must render the real scoring factors");
+  assert.ok(page.includes(`id={SCORING_ANCHOR}`), "the scoring explanation must be its own section");
   assert.ok(page.includes("ScrollReveal"), "the how-it-works cards must be revealed on scroll");
-  assert.ok(page.includes("PRIORITY_STYLES") && page.includes("PRIORITY_BAR"), "priority labels must reuse the shared mapping");
-  assert.ok(page.includes('aria-label="Masal AI"'), "the closing masal.ai wordmark must be present");
+  assert.ok(page.includes("PRIORITY_STYLES"), "priority labels must reuse the shared mapping");
+  assert.ok(page.includes('aria-label="Masal AI — home"'), "branding must sit in the header at the top");
+  assert.ok(!page.includes('aria-label="Masal AI"'), "the duplicated bottom wordmark must be gone");
   assert.ok(page.includes("/privacy") && page.includes("/terms"), "footer legal links must be present");
   assert.ok(!page.includes("next/image") && !page.includes("<img"), "the summary must use real components, not a fake screenshot");
 });

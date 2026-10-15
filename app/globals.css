@@ -130,10 +130,15 @@
   }
   /* One priority treatment for every surface that names a sales priority: the
      colour plus a restrained, local glow (text-shadow). Colour is inherited from
-     the theme tokens above, so a label never carries a hard-coded colour. */
-  .priority-act { color: var(--priority-act); text-shadow: 0 0 12px var(--priority-act-glow); }
-  .priority-follow { color: var(--priority-follow); text-shadow: 0 0 12px var(--priority-follow-glow); }
-  .priority-nurture { color: var(--priority-nurture); text-shadow: 0 0 12px var(--priority-nurture-glow); }
+     the theme tokens above, so a label never carries a hard-coded colour. Each
+     class also publishes `--priority-glow` for the matching dot indicator. */
+  .priority-act { color: var(--priority-act); --priority-glow: var(--priority-act-glow); text-shadow: 0 0 12px var(--priority-act-glow); }
+  .priority-follow { color: var(--priority-follow); --priority-glow: var(--priority-follow-glow); text-shadow: 0 0 12px var(--priority-follow-glow); }
+  .priority-nurture { color: var(--priority-nurture); --priority-glow: var(--priority-nurture-glow); text-shadow: 0 0 12px var(--priority-nurture-glow); }
+  /* The small colour dot beside a priority label. Carry a `.priority-*` class
+     alongside it so `currentColor` and `--priority-glow` resolve to that
+     priority. */
+  .priority-dot { background: currentColor; box-shadow: 0 0 10px var(--priority-glow); }
   /* Scroll reveal for the "how it works" cards. The server renders the cards
      visible; the pre-paint script adds `.js`, and only then does a `pending`
      card start hidden and above its resting place. Without JavaScript (or if

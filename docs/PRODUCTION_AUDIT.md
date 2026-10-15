@@ -68,7 +68,7 @@ environment inside Route Handlers and attached only to the outbound provider req
 - Semantic landmarks (`main`, `header`, `footer`, `nav`, `h1`/`h2`/`h3`), a visible-content skip link on every page, labelled controls, and accessible link text.
 - Focus styles are defined globally (`:focus-visible`), so keyboard navigation is visible.
 - Layouts are responsive (stacked on mobile, row on desktop) and use the two centralized theme token sets (dark and light), which meet contrast for body and button text.
-- `prefers-reduced-motion` is honoured (`app/globals.css`); the landing page introduces no animation.
+- `prefers-reduced-motion` is honoured (`app/globals.css`): when the user asks for reduced motion the landing scroll reveal is disabled and its cards render in place (the reveal is also inert without JavaScript).
 
 ## 6. Known limitations (not implemented)
 
@@ -78,12 +78,13 @@ per-instance. Do not use this demo with real customer data.
 
 ## 7. Verification performed
 
-Commands run against this revision: `npm test`, `npm run typecheck`, `npm run lint`.
+Commands run against this revision: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
 
-- Tests: 106 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy and customer-neutral capability summary (`tests/landing.test.ts`), the shared priority colour mapping (`tests/priority.test.ts`), and the theme tokens (`tests/theme.test.ts`).
+- Tests: 107 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy and the scoring factors/priority bands derived from the engine (`tests/landing.test.ts`), the shared priority colour mapping (`tests/priority.test.ts`), and the theme tokens (`tests/theme.test.ts`).
 - Typecheck (`tsc --noEmit`) and lint: clean (lint reports only pre-existing config warnings).
+- Production build (`next build`): succeeded; `/`, `/privacy`, `/terms`, `/icon.svg`, `/opengraph-image`, `/robots.txt`, `/sitemap.xml`, and the `/dashboard` shell prerendered as static; the three API routes stayed dynamic.
 
-On the previous revision a production build and a local `next start` pass were also run: the build succeeded; `/`, `/privacy`, `/terms`, `/icon.svg`, `/opengraph-image`, `/robots.txt`, `/sitemap.xml` prerendered as static; `/dashboard` was a static shell; the three API routes stayed dynamic; and over HTTP `/`, `/dashboard`, `/privacy`, `/terms` returned `200` (the landing page serving the expected title, description, canonical, and Open Graph URL; `/dashboard` carrying `noindex`; `/api/analyze` returning `400` for an invalid body). Those build and local-server steps were **not** re-run for this revision.
+A local `next start` pass with HTTP checks was run on a previous revision (all four pages returned `200`, the landing page served the expected title/description/canonical/Open Graph URL, `/dashboard` carried `noindex`, and `/api/analyze` returned `400` for an invalid body); that local-server step was **not** re-run for this revision.
 
 **Not verified:** visual/browser layout checks (no browser tooling was available in this
 environment) and the deployed Vercel build. A Git push does not imply production is updated —
