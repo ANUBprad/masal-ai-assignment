@@ -154,3 +154,10 @@ test("Call Brief replaces unsupported claim fields with safe guidance", () => {
   assert.match(brief.talkingPoints[0] ?? "", /confirm current inventory/i);
   assert.match(brief.openingLine, /Anubhab Pradhan from masal.ai/);
 });
+
+// Regression: availability asserted about a specific unit must be flagged, and a
+// percentage discount must be labelled once (discount), never as a price claim.
+test("availability on a specific unit is detected without double-labelling a discount", () => {
+  assert.deepEqual(detectUnsupportedClaims("Sell the available apartment for ₹1.2 crore."), ["availability"]);
+  assert.deepEqual(detectUnsupportedClaims("We offer a 10% discount."), ["discount"]);
+});

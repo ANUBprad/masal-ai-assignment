@@ -105,9 +105,11 @@ const BOOKING_CLAIM_RE =
 
 // Asserting that a property exists, is available, or is ready to move in.
 const INVENTORY_CLAIM_RE =
-  /\b(?:ready to move in|move-in ready|available now|currently available|in stock|on the market)\b|\bwe (?:do )?(?:currently )?have\b[^.!?\n]{0,60}?\b(?:units?|flats?|apartments?|villas?|plots?|options?|properties|inventory|communities|stock)\b|\b(?:our|we have)\s+(?:available\s+)?(?:properties|apartments|flats|inventory|communities)\b/i;
+  /\b(?:ready to move in|move-in ready|available now|currently available|in stock|on the market)\b|\bavailable\s+(?:units?|flats?|apartments?|villas?|plots?|properties|options?|homes?|inventory|communities|stock)\b|\bwe (?:do )?(?:currently )?have\b[^.!?\n]{0,60}?\b(?:units?|flats?|apartments?|villas?|plots?|options?|properties|inventory|communities|stock)\b|\b(?:our|we have)\s+(?:available\s+)?(?:properties|apartments|flats|inventory|communities)\b/i;
+// A percentage tied to a discount is a discount claim, not a price claim; the
+// discount detector below owns that phrasing so a single phrase is labelled once.
 const PRICE_CLAIM_RE =
-  /\b(?:the price is|priced at|costs?|will cost|we offer|we can offer|guaranteed price|fixed price)\b[^.!?\n]{0,50}(?:₹|\b(?:rs\.?|inr)\b|\b\d+(?:\.\d+)?\s*(?:lakh|lakhs|crore|crores|cr)\b|\b\d+\s*%\s*discount\b)/i;
+  /\b(?:the price is|priced at|costs?|will cost|we offer|we can offer|guaranteed price|fixed price)\b[^.!?\n]{0,50}(?:₹|\b(?:rs\.?|inr)\b|\b\d+(?:\.\d+)?\s*(?:lakh|lakhs|crore|crores|cr)\b)/i;
 const DISCOUNT_CLAIM_RE =
   /\b(?:discount|cashback|rebate|price reduction)\b[^.!?\n]{0,40}\b(?:offer|available|guaranteed|approved|assured|\d+\s*%)\b|\b(?:offer|give|provide)\b[^.!?\n]{0,30}\b\d+\s*%\s*discount\b/i;
 

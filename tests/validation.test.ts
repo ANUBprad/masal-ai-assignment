@@ -123,3 +123,11 @@ test("budget parser binds units to the matching number and rejects ambiguous tex
   assert.equal(readBudget("budget 50 lakhs").amount, 5_000_000);
   assert.equal(readBudget("50 lakhs negotiable or 1 cr").kind, "invalid");
 });
+
+// Regression: a trailing qualifier keeps one clear figure quantified, but a
+// parenthetical carrying another amount is still ambiguous.
+test("a trailing qualifier never hides a second amount", () => {
+  assert.equal(readBudget("₹1.2 Cr (flexible)").amount, 12_000_000);
+  assert.equal(readBudget("₹1.2–1.5 Cr (flexible)").amount, 12_000_000);
+  assert.equal(readBudget("1.2 Cr (or 1.5 Cr)").kind, "invalid");
+});
