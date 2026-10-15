@@ -107,3 +107,19 @@ test("validateLead preserves a customer name exactly apart from edge whitespace"
   });
   assert.equal(lead.name, "Rohan  Sharma (Dummy)");
 });
+
+
+test("budget parser binds units to the matching number and rejects ambiguous text", () => {
+  assert.equal(readBudget("50 lakhs or 1 cr").kind, "invalid");
+  assert.equal(readBudget("1.2 cr and 75 lakhs").kind, "invalid");
+  assert.equal(readBudget("1.2–1.5 Cr").amount, 12_000_000);
+  assert.equal(readBudget("1.2 Cr - 1.5 Cr").amount, 12_000_000);
+  assert.equal(readBudget("1.5 Cr - 1.2 Cr").kind, "invalid");
+  assert.equal(readBudget("₹ 1,20,00,000").amount, 12_000_000);
+  assert.equal(readBudget("50,00,000").amount, 5_000_000);
+  assert.equal(readBudget("12,34").kind, "invalid");
+  assert.equal(readBudget("about 50 lakhs").amount, 5_000_000);
+  assert.equal(readBudget("around 1.3 cr").amount, 13_000_000);
+  assert.equal(readBudget("budget 50 lakhs").amount, 5_000_000);
+  assert.equal(readBudget("50 lakhs negotiable or 1 cr").kind, "invalid");
+});
