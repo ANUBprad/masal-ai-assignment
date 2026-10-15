@@ -345,6 +345,7 @@ export async function analyzeLead(plan: ProviderKey[], lead: LeadInput): Promise
     (Array.isArray(value) ? value : []).filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20);
   return {
     ...result,
+    suggestedReply: resolveIdentityPlaceholders(result.suggestedReply).replace(/\bwe (?:do )?have\b[^.!?]*(?:gated communities|properties|apartments|inventory|options)[^.!?]*[.!?]/gi, "I will check current inventory and confirm which options match your requirements. "),
     knownFacts: stringList(result.knownFacts),
     inferences: stringList(result.inferences),
     unknowns: stringList(result.unknowns),
