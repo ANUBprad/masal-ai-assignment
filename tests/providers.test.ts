@@ -281,3 +281,23 @@ test("call brief resolves identity placeholders to the real salesperson and comp
     stub.restore();
   }
 });
+
+
+test("call brief rejects oversized or non-string generated fields", async () => {
+  setEnv({ GROQ_API_KEY: "groq-key" });
+  const plan = providerPlan();
+  const invalidBriefs = [
+    { objective: "O", talkingPoints: ["T", 42], questions: ["Q"], watchOutFor: ["W"], openingLine: "L" },
+    { objective: "O", talkingPoints: Array(13).fill("T"), questions: ["Q"], watchOutFor: ["W"], openingLine: "L" },
+    { objective: "O".repeat(1501), talkingPoints: ["T"], questions: ["Q"], watchOutFor: ["W"], openingLine: "L" },
+    { objective: "O", talkingPoints: ["T".repeat(501)], questions: ["Q"], watchOutFor: ["W"], openingLine: "L" }
+  ];
+  for (const invalid of invalidBriefs) {
+    const stub = stubFetch(() => ({ status: 200, ok: true, body: { choices: [{ message: { content: JSON.stringify(invalid) } }] } }));
+    try {
+      await assert.rejects(() => generateCallBrief(plan, lead), (error: unknown) => error instanceof AiFailure);
+    } finally {
+      stub.restore();
+    }
+  }
+});
