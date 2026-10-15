@@ -83,19 +83,21 @@ A short reviewer path through the workspace at [assignment-masal.vercel.app/dash
 
 ## Lead scoring explained
 
-Scoring is **deterministic application logic** (`lib/scoring.ts`) and is never computed or overridden by the LLM. The same lead always produces the same score and breakdown, and missing information is reported rather than treated as a positive signal.
+Scoring is **deterministic application logic** (`lib/scoring.ts`) and is never computed or overridden by the LLM. The same lead always produces the same score and breakdown, and missing information is reported rather than treated as a positive signal. The 100-point score is a weighted sum of **five fixed parameters**:
 
-| Dimension | Max | What it reads (from recorded data only) |
-| --- | ---: | --- |
-| Buying timeline | 25 | The recorded timeline bucket (`Within 30 days` → 25, down to `Just exploring / no rush` → 0). LLM-stated urgency is not used. |
-| Purchase intent | 25 | Independent, non-overlapping evidence signals in the customer message, summed with partial credit: explicit readiness (25) or a concrete booking/payment action (12); comparing/shortlisting (18) and booking can combine up to the 25 cap. General interest (10) and browsing (3) apply only when no strong signal is present, and browsing caps the score. Each phrase is counted once, and a negation in one clause does not mask a signal in another. |
-| Requirement clarity | 20 | Four independently-scored components with partial credit: location; configuration (a stated size such as `3 BHK` scores higher than a bare type word); budget (a figure scores higher than a budget only discussed); and preferences/constraints. A property type alone never earns full clarity. |
-| Budget readiness | 20 | Budget specificity (a specific figure, or a budget discussed but not quantified) plus explicit financing readiness (pre-approval, funds ready, etc.), scored as separate evidence. Missing financing is reported as unconfirmed and is never treated as financial weakness. |
-| Engagement & commitment | 10 | Recorded status and the customer message are distinct evidence, summed and capped at 10: `Visit scheduled` → 10, `Qualified` → 5, plus a message-based confirmed next step (10) or a concrete next-step request (5). A negated next step ("I can't visit") earns nothing and is never assumed. |
+| Parameter | Max | Why it's included | What it reads (recorded data only) |
+| --- | ---: | --- | --- |
+| Buying timeline | 25 | How soon the buyer intends to act is the strongest driver of response urgency. | The recorded timeline bucket (`Within 30 days` → 25, down to `Just exploring / no rush` → 0). LLM-stated urgency is not used. |
+| Purchase intent | 25 | Separates a genuine intention to buy from casual interest. | Independent, non-overlapping evidence signals in the customer message, summed with partial credit: explicit readiness (25) or a concrete booking/payment action (12); comparing/shortlisting (18) and booking can combine up to the 25 cap. General interest (10) and browsing (3) apply only when no strong signal is present, and browsing caps the score. Each phrase is counted once, and a negation in one clause does not mask a signal in another. |
+| Requirement clarity | 20 | A well-specified requirement is easier to match and to advance. | Four independently-scored components with partial credit: location; configuration (a stated size such as `3 BHK` scores higher than a bare type word); budget (a figure scores higher than a budget only discussed); and preferences/constraints. A property type alone never earns full clarity. |
+| Budget readiness | 20 | Budget and financing decide whether a deal can actually proceed. | Budget specificity (a specific figure, or a budget discussed but not quantified) plus explicit financing readiness (pre-approval, funds ready, etc.), scored as separate evidence. Missing financing is reported as unconfirmed and is never treated as financial weakness. |
+| Engagement & commitment | 10 | **The fifth, additional parameter.** The four intake fields describe what the buyer *wants*; engagement is the only signal of what the buyer has *done* — the recorded movement toward a next step (a scheduled visit, a request for one) that the intake data cannot show. | Recorded status and the customer message are distinct evidence, summed and capped at 10: `Visit scheduled` → 10, `Qualified` → 5, plus a confirmed next step (10) or a concrete next-step request (5). A negated next step ("I can't visit") earns nothing and is never assumed. |
 
-**Priority bands:** `Act Now` **80–100** · `Follow Up` **50–79** · `Nurture` **0–49** (`priorityForScore`).
+Engagement is deliberately capped at **10 of 100**: it nudges the ranking without deciding it. A lead whose only signal is engagement scores at most 10 — far below the 50-point `Follow Up` threshold — so engagement can never on its own produce a `Follow Up` or `Act Now` lead. It is a next step, not a sale: a booked visit does not mean the buyer will close.
 
-The score is a **prioritisation heuristic, not a probability of conversion and not a qualification status**. A high score means "work this lead sooner", not "this lead will close". The workspace shows the score out of 100, the priority label, and each dimension's earned/max alongside its supporting evidence or missing details, so the ranking is inspectable rather than opaque.
+**Priority bands** (from `priorityForScore` in `lib/scoring.ts`): **80 and above → `Act Now`** · **50–79 → `Follow Up`** · **below 50 → `Nurture`**.
+
+The score is a **deterministic, rule-based prioritisation heuristic — not a calibrated probability of conversion, and not a qualification status** — and it has not been validated against real conversion outcomes. A high score means "work this lead sooner", not "this lead will close". The workspace shows the score out of 100, the priority label, and each dimension's earned/max alongside its supporting evidence or missing details, so the ranking is inspectable rather than opaque.
 
 ## Architecture
 
@@ -212,7 +214,7 @@ The tests cover the deterministic and safety-critical pieces across 13 files:
 - **Workspace lifecycle** (`tests/leads.test.ts`, `tests/demos.test.ts`, `tests/dashboard.test.ts`) — persistence, demo separation, and the Add Lead path.
 - **Guards and copy** (`tests/http.test.ts`, `tests/rate-limit.test.ts`, `tests/landing.test.ts`, `tests/priority.test.ts`, `tests/theme.test.ts`).
 
-**What has been run.** In the current working session against this code, `npm test` reported **131 tests passing**, and `npm run typecheck` and `npm run lint` both passed (lint reports only two pre-existing config warnings). `npm run build` and `npm run dev` were **not** run here — the production build is exercised in CI.
+**What has been run.** In the current working session against this code, `npm test` reported **149 tests passing**, and `npm run typecheck` and `npm run lint` both passed (lint reports only two pre-existing config warnings). `npm run build` and `npm run dev` were **not** run here — the production build is exercised in CI.
 
 **CI** (`.github/workflows/ci.yml`) runs on every push and pull request to `main`, on Node 22:
 
