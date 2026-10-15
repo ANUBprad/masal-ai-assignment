@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,7 +13,7 @@
   --text: #14251d;
   --text-soft: #536057;
   --text-muted: #5b6960;
-  --text-faint: #6b786f;
+  --text-faint: #687469;
   --border: #e5eae5;
   --border-soft: #edf0ec;
   --border-input: #dfe6dd;
@@ -28,7 +27,7 @@
   --on-lime: #14251d;
   --lime: #d7f36a;
   --positive: #52725a;
-  --positive-strong: #4e8a56;
+  --positive-strong: #477f4e;
   --hot-fg: #ab4a22;
   --hot-bg: #fff0e8;
   --hot-bar: #e88352;
@@ -97,12 +96,12 @@
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: "DM Sans", system-ui, sans-serif;
+    font-family: var(--font-dm-sans), system-ui, sans-serif;
     line-height: 1.5;
     transition: background-color .2s ease, color .2s ease;
   }
   h1,h2,h3,h4 {
-    font-family: "Manrope", "DM Sans", sans-serif;
+    font-family: var(--font-manrope), var(--font-dm-sans), sans-serif;
     letter-spacing: -.014em;
     text-wrap: balance;
   }

@@ -6,7 +6,7 @@ This document describes the system as it is implemented in this repository. It i
 
 Masal AI is a single Next.js application that helps a real-estate salesperson triage inbound leads. It combines:
 
-- a client-side single-page workspace for capture, ranking, and display;
+- a static landing page at `/` and a client-side workspace at `/dashboard` for capture, ranking, and display;
 - server-side Route Handlers that keep the AI provider keys off the client, validate input, apply a coarse rate limit, and call an external provider (Groq by default, with optional multi-key rotation and Gemini failover);
 - a small, deterministic scoring module for transparent prioritisation.
 
@@ -18,7 +18,7 @@ Out of scope (not implemented): authentication, authorization, multi-user tenanc
 
 | Actor / system | Role |
 | --- | --- |
-| Salesperson (browser) | Uses the single-page workspace: capture leads, read AI analysis, chat, generate call briefs, rank the pipeline. Holds all lead state in `localStorage`. |
+| Salesperson (browser) | Uses the workspace at `/dashboard`: capture leads, read AI analysis, chat, generate call briefs, rank the pipeline. Holds all lead state in `localStorage`. |
 | Next.js application | Hosts both the client UI and the server Route Handlers in one deployable unit. |
 | Server-side API routes | `/api/analyze`, `/api/chat`, `/api/call-brief` — the only trusted boundary for input and credentials. |
 | External LLM provider(s) | Groq (OpenAI-compatible `api.groq.com`) primary by default; Google Gemini (`generativelanguage.googleapis.com`) as an optional failover or alternate primary. Called over HTTPS by the server routes. |
@@ -33,7 +33,7 @@ Trust boundaries and the server-side credential handling are shown explicitly. N
 ```mermaid
 flowchart TD
     subgraph Browser["Browser (untrusted input)"]
-        UI["app/page.tsx — client workspace<br/>localStorage: masal-ai-leads-v1"]
+        UI["app/dashboard/page.tsx — client workspace<br/>localStorage: masal-ai-leads-v1"]
     end
 
     subgraph App["Next.js application (single deployment)"]
@@ -86,9 +86,17 @@ Reading the diagram: the browser is the untrusted input source and never holds c
 
 | Path | Responsibility |
 | --- | --- |
-| `app/page.tsx` | Client workspace (`"use client"`): lead list, intake form, per-lead analysis panel, copilot chat, call brief, status, search/filter, stats, and the light/dark theme toggle. Owns all lead state and `localStorage` persistence. |
+| `app/page.tsx` | Static landing page (server component) for `/`: header, hero, "how it works" steps, final CTA, and footer with the legal links. Copy and the dashboard route live in `lib/landing.ts`. |
+| `app/dashboard/page.tsx` | Client workspace (`"use client"`) at `/dashboard`: lead list, intake form, per-lead analysis panel, copilot chat, call brief, status, search/filter, stats, and the light/dark theme toggle. Owns all lead state and `localStorage` persistence. |
 | `app/layout.tsx` | Root layout, page metadata, and a small inline script that applies the saved theme class before paint (no flash). |
-| `app/globals.css` | Tailwind layers plus the light/dark design tokens (`:root` / `.dark` CSS variables) that `app/page.tsx` consumes. |
+| `app/globals.css` | Tailwind layers plus the light/dark design tokens (`:root` / `.dark` CSS variables) that the landing page and `app/dashboard/page.tsx` consume. |
+| `app/dashboard/layout.tsx` | Server layout for `/dashboard`: sets the route metadata (`title: "Dashboard"`) and `noindex` (the workspace is an app screen), then renders the client workspace. |
+| `app/legal-shell.tsx` | Shared shell for the static legal pages (header, footer, section styling). |
+| `app/privacy/page.tsx`, `app/terms/page.tsx` | Static legal copy, reached from the landing-page footer. |
+| `app/not-found.tsx` | 404 page that links back to `/dashboard`. |
+| `app/robots.ts`, `app/sitemap.ts`, `app/opengraph-image.tsx`, `app/icon.svg` | Crawler and social-preview assets. The sitemap lists `/`, `/privacy`, `/terms` (the noindexed dashboard and API routes are excluded). |
+| `lib/site.ts` | Canonical site URL, name, and description, shared by metadata, `robots`, and `sitemap`. |
+| `lib/landing.ts` | Landing-page copy (hero, workflow steps) and the dashboard route constant, kept JSX-free so the Node test runner can assert route wiring. |
 | `app/api/analyze/route.ts` | POST handler: guard → parse → validate lead → `analyzeLead` → `{ analysis }`. |
 | `app/api/chat/route.ts` | POST handler: guard → parse → validate lead/question/history/analysis → `answerChat` → `{ answer }`. |
 | `app/api/call-brief/route.ts` | POST handler: guard → parse → validate lead → `generateCallBrief` → `{ brief }`. |
@@ -101,7 +109,7 @@ Reading the diagram: the browser is the untrusted input source and never holds c
 | `lib/providers.ts` | The provider layer: env key/model resolution with numbered-key rotation, an ordered provider plan, cooldown/failover (`attemptWithFailover`), the Groq and Gemini `fetch` transports (45s abort), `analyzeLead`/`answerChat`/`generateCallBrief`, `AiFailure`, and `safeAiError`. |
 | `types/lead.ts` | Shared contracts: `LeadInput`, `LeadAnalysis`, `Lead`, `ChatMessage`, `CallBrief`, `Priority`, `LeadStatus`, `BUYING_TIMELINES`, `ScoreDimension`, `LeadScoreDetail`. |
 
-Separation of concerns: UI and state live in `app/page.tsx`; domain types in `types/`; prompt text in `lib/prompts.ts`; provider transport, key resolution, and failover in `lib/providers.ts`; request handling in `lib/http.ts` and `lib/guard.ts`; input policy in `lib/validation.ts`. This keeps the "what to ask" (prompts), "how to call and who to blame on failure" (providers), "who may call" (guard/rate-limit), and "is it valid" (validation) independent.
+Separation of concerns: UI and state live in `app/dashboard/page.tsx`; domain types in `types/`; prompt text in `lib/prompts.ts`; provider transport, key resolution, and failover in `lib/providers.ts`; request handling in `lib/http.ts` and `lib/guard.ts`; input policy in `lib/validation.ts`. This keeps the "what to ask" (prompts), "how to call and who to blame on failure" (providers), "who may call" (guard/rate-limit), and "is it valid" (validation) independent.
 
 ## 5. Core data model
 
@@ -200,7 +208,7 @@ sequenceDiagram
     R-->>U: 200 { answer }
 ```
 
-Scoping: context is derived from the single `lead` object the client sends for the currently selected lead, and chat is stored per lead in `lead.chat` (`app/page.tsx`). Switching leads changes which `lead`/`history` is sent, so one lead's analysis or conversation does not enter another lead's prompt. The server does not hold per-conversation state.
+Scoping: context is derived from the single `lead` object the client sends for the currently selected lead, and chat is stored per lead in `lead.chat` (`app/dashboard/page.tsx`). Switching leads changes which `lead`/`history` is sent, so one lead's analysis or conversation does not enter another lead's prompt. The server does not hold per-conversation state.
 
 ### 6.3 Call brief
 
@@ -293,7 +301,7 @@ No status codes beyond these are produced by the routes.
 | Upstream provider error / 5xx | Retried transiently within a bounded pass count, then mapped by `safeAiError` to a generic message; status `502`. |
 | Timeout (>45s) | `AbortController` aborts; error "Request timed out" → `502`. |
 | Empty or unreadable model JSON | Throws; `502` with a generic retry message. |
-| Client cancellation | The client uses `fetch` without an explicit abort controller; if a request fails, `app/page.tsx` rolls back the optimistic chat message and shows a notice. There is no server-side cancellation beyond the 45s timeout. |
+| Client cancellation | The client uses `fetch` without an explicit abort controller; if a request fails, `app/dashboard/page.tsx` rolls back the optimistic chat message and shows a notice. There is no server-side cancellation beyond the 45s timeout. |
 | State loss | Lead data lives only in `localStorage`; clearing site data, using another browser/device, or private windows loses it. The rate limiter resets across instances/cold starts. |
 
 ## 12. Testing strategy
@@ -337,7 +345,7 @@ These are proposals only; none are present in the current code.
 
 ## 15. End-to-end request lifecycle
 
-1. The salesperson acts in `app/page.tsx`; the component issues a same-origin `POST` with a JSON body (no credentials).
+1. The salesperson acts in `app/dashboard/page.tsx`; the component issues a same-origin `POST` with a JSON body (no credentials).
 2. Next.js invokes the matching Route Handler (`runtime = "nodejs"`).
 3. `guard(request)` applies the per-IP rate limit (`429`) and resolves the ordered provider plan (`503` if no key is configured).
 4. `jsonBody` parses the body (`400` if not a JSON object); `validateLead` (and, for chat, the question/history/analysis checks) validate fields (`400`).

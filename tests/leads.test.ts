@@ -36,13 +36,27 @@ test("fresh or invalid storage initializes with zero leads", () => {
 });
 
 // 2. Seeded demo leads are never returned — whether marked by the flag or only
-//    by their deterministic id (the actual bug: flagless legacy records).
+//    by their id (the actual bug: flagless legacy records). The reserved
+//    "demo-" id prefix covers the three known fixtures and any straggler.
 test("seeded demo leads are never loaded, with or without the demo flag", () => {
   assert.deepEqual(parseStoredLeads(JSON.stringify([flaggedSeed])), []);
   assert.deepEqual(parseStoredLeads(JSON.stringify([flaglessSeed])), []);
   assert.deepEqual(parseStoredLeads(JSON.stringify([flaggedSeed, flaglessSeed])), []);
   assert.equal(isSeededLead(flaglessSeed), true);
+  assert.equal(isSeededLead({ id: "demo-1" }), true);
+  assert.equal(isSeededLead({ id: "demo-2" }), true);
   assert.equal(isSeededLead({ id: "demo-3" }), true);
+  assert.equal(isSeededLead({ id: "demo-99" }), true);
+});
+
+// The prefix rule must not overreach: a generated id that merely contains the
+// letters never starts with the reserved prefix, so it is always kept.
+test("the reserved demo prefix never matches a normal generated id", () => {
+  assert.equal(isSeededLead({ id: "democracy" }), false);
+  assert.equal(isSeededLead({ id: "lead-demo" }), false);
+  assert.equal(isSeededLead({ id: "3f2a-demo" }), false);
+  assert.equal(isSeededLead({ id: "1726000000000-0.42" }), false);
+  assert.equal(isSeededLead({ id: "demo" }), false);
 });
 
 // 3. A lead created by the salesperson survives a reload.
@@ -145,4 +159,39 @@ test("creating the first lead from an empty workspace persists it", () => {
   const reloaded = parseStoredLeads(JSON.stringify(afterCreate));
   assert.equal(reloaded.length, 1);
   assert.equal(reloaded[0].id, "first-lead");
+});
+
+// 10. The full startup cycle (load → persist → reload) never reintroduces a
+//     seeded record: once cleaned, the demo lead cannot reappear on any later
+//     load, so a refresh and a hard reopen both stay clean.
+test("repeated startup never reintroduces a seeded demo lead", () => {
+  const store: Record<string, string> = {
+    [LEADS_STORAGE_KEY]: JSON.stringify([flaglessSeed, flaggedSeed, makeLead({ id: "lead-1" })])
+  };
+  // Boot 1: clean the store exactly as the workspace does, then persist it back.
+  const boot1 = loadStoredLeads(readFrom(store));
+  store[LEADS_STORAGE_KEY] = JSON.stringify(boot1.leads);
+  store[LEADS_VERSION_KEY] = String(LEADS_VERSION);
+  assert.deepEqual(boot1.leads.map((lead) => lead.id), ["lead-1"]);
+
+  // Boot 2 and 3: nothing to migrate, nothing reappears.
+  for (let boot = 0; boot < 2; boot += 1) {
+    const next = loadStoredLeads(readFrom(store));
+    store[LEADS_STORAGE_KEY] = JSON.stringify(next.leads);
+    assert.equal(next.migrated, false);
+    assert.deepEqual(next.leads.map((lead) => lead.id), ["lead-1"]);
+  }
+});
+
+// 11. An empty workspace stays empty across reloads — no seed is injected to
+//     fill the silence, and the selection resolves to nothing.
+test("an empty workspace stays empty after reload", () => {
+  const store: Record<string, string> = { [LEADS_VERSION_KEY]: String(LEADS_VERSION) };
+  for (let boot = 0; boot < 3; boot += 1) {
+    const { leads: loaded } = loadStoredLeads(readFrom(store));
+    assert.deepEqual(loaded, []);
+    assert.equal(pipelineStats(loaded).total, 0);
+    assert.equal(resolveSelectedLead(loaded, null), undefined);
+    store[LEADS_STORAGE_KEY] = JSON.stringify(loaded);
+  }
 });

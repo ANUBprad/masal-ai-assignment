@@ -4,24 +4,26 @@ import type { Lead, Priority } from "../types/lead.ts";
 export const LEADS_STORAGE_KEY = "masal-ai-leads-v1";
 // Bumped when the stored shape or seed-cleanup rules need a one-time migration.
 export const LEADS_VERSION_KEY = "masal-ai-leads-version";
-export const LEADS_VERSION = 2;
+export const LEADS_VERSION = 3;
 
-// The deterministic ids the seeded demo records were created with. The app's
-// own `makeId` (crypto.randomUUID / timestamp) never produces an id starting
-// with "demo-", so these identify the fixtures unambiguously — including older
-// records written before the `demo: true` flag existed. This is the reliable
-// marker; a customer whose name happens to be "Rahul" is never matched by name.
-const SEEDED_LEAD_IDS = new Set(["demo-1", "demo-2", "demo-3"]);
+// Every record the app ever seeded (under this key) was created with an id
+// beginning "demo-" (`demo-1`, `demo-2`, `demo-3`). The app's own `makeId`
+// returns a crypto UUID or `${timestamp}-${random}`, so it can never emit an id
+// starting with "demo-". Matching that prefix is therefore a reliable
+// fingerprint: it covers the three known fixtures and any straggler, while a
+// user-created lead can never match it. Deletion is never keyed off a customer
+// name (a genuine "Rahul" is always kept).
+const SEEDED_LEAD_ID_PREFIX = "demo-";
 
 // A record is seeded demo data only when we can positively identify it: either
-// it carries the legacy `demo: true` flag, or its id is one of the known seed
-// ids. Anything else — including a real lead named "Rahul" or one that merely
-// resembles an example — is kept.
+// it carries the legacy `demo: true` flag, or its id uses the app's reserved
+// seed prefix. Anything else — a real lead named "Rahul", a record with a
+// normal generated id, or one that merely resembles an example — is kept.
 export function isSeededLead(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   if (record.demo === true) return true;
-  return typeof record.id === "string" && SEEDED_LEAD_IDS.has(record.id);
+  return typeof record.id === "string" && record.id.startsWith(SEEDED_LEAD_ID_PREFIX);
 }
 
 // Removes only the reliably identified seeded records. Idempotent: applying it

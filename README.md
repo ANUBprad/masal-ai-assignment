@@ -15,7 +15,7 @@ Masal AI helps a salesperson triage inbound leads quickly:
 - Generate a short call brief before picking up the phone.
 - Switch between light and dark themes (light by default; the choice is remembered in the browser).
 
-The product is a single-page Next.js application with server-side API routes. It is a focused demo, not a production system — see [Limitations](#ai-behaviour-and-limitations) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The product is a Next.js application with a static landing page at `/`, a client-side workspace at `/dashboard`, and server-side API routes. It is a focused demo, not a production system — see [Limitations](#ai-behaviour-and-limitations) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Demo and submission
 
@@ -37,11 +37,11 @@ The five assignment requirements map to concrete, implemented behaviour:
 
 | Requirement | What the application does | Where |
 | --- | --- | --- |
-| **1. Lead intake** | Captures name, location, property requirement, budget, buying timeline (from a fixed list), and a free-text customer message. | `app/page.tsx` (form), `types/lead.ts`, `lib/validation.ts` |
+| **1. Lead intake** | Captures name, location, property requirement, budget, buying timeline (from a fixed list), and a free-text customer message. | `app/dashboard/page.tsx` (form), `types/lead.ts`, `lib/validation.ts` |
 | **2. Real AI-based lead analysis** | Each lead can be analysed by a server-side call to an external LLM provider (Groq by default), returning a summary, customer intent, key requirements, objections/concerns, separated known facts / inferences / unknowns / deal risks, a recommended next action, and a suggested reply. | `app/api/analyze/route.ts`, `lib/providers.ts`, `lib/prompts.ts` |
 | **3. Contextual conversational interface** | A per-lead copilot that answers the salesperson's follow-up questions using the selected lead's details, its current AI analysis, and that lead's conversation history. | `app/api/chat/route.ts`, `lib/providers.ts` |
-| **4. Multiple leads and prioritization** | Leads coexist in a list, each with its own analysis and chat. A deterministic 100-point score plus Act Now / Follow Up / Nurture grouping, search, and filtering rank the pipeline. | `app/page.tsx`, `lib/scoring.ts` |
-| **5. Scan-friendly presentation** | A dedicated "Lead intelligence" panel surfaces the AI outputs as short, labelled blocks; the list shows score, priority, location, and timeline at a glance. | `app/page.tsx` |
+| **4. Multiple leads and prioritization** | Leads coexist in a list, each with its own analysis and chat. A deterministic 100-point score plus Act Now / Follow Up / Nurture grouping, search, and filtering rank the pipeline. | `app/dashboard/page.tsx`, `lib/scoring.ts` |
+| **5. Scan-friendly presentation** | A dedicated "Lead intelligence" panel surfaces the AI outputs as short, labelled blocks; the list shows score, priority, location, and timeline at a glance. | `app/dashboard/page.tsx` |
 
 The five requirements are covered by the shipped code above. Live AI responses depend on a configured server key and network access (see [Environment variables](#environment-variables)).
 
