@@ -82,8 +82,9 @@ export interface Lead extends LeadInput {
   analysis?: LeadAnalysis;
   chat: ChatMessage[];
   callBrief?: CallBrief;
+  // True only for the app's own labelled demo scenarios (lib/demos.ts). Genuine
+  // leads never set this, so a customer named "Rahul" is never treated as a demo.
   demo?: boolean;
-  sample?: boolean;
 }
 
 export interface ChatMessage {

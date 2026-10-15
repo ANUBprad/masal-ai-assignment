@@ -9,8 +9,8 @@ import {
 import type { ChatMessage, Lead, LeadInput, LeadScoreDetail, LeadStatus, Priority } from "@/types/lead";
 import { BUYING_TIMELINES } from "@/types/lead";
 import { PRIORITIES, PRIORITY_BAR, PRIORITY_NOTE, PRIORITY_STYLES, scoreLead, type LeadScore } from "@/lib/scoring";
-import { LEADS_STORAGE_KEY, LEADS_VERSION, LEADS_VERSION_KEY, loadStoredLeads, pipelineStats, resolveSelectedLead } from "@/lib/leads";
-import { buildSampleLeads, isSampleLead, removeSampleLeads } from "@/lib/samples";
+import { LEADS_STORAGE_KEY, LEADS_VERSION, LEADS_VERSION_KEY, loadStoredLeads, resolveSelectedLead } from "@/lib/leads";
+import { buildDemoLeads, DEMOS_DISMISSED_KEY, isDemoLead, leadDisplayName, removeDemoLeads } from "@/lib/demos";
 import { validateLeadFields } from "@/lib/validation";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -61,18 +61,13 @@ export default function HomePage() {
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof LeadInput, string>>>({});
 
-  // Load persisted leads once on mount. `loadStoredLeads` drops seeded demo
-  // records — including older ones saved without the `demo` flag — and reports
-  // whether a legacy store was migrated, so we stamp the current schema version
-  // and the cleanup does not need to run again. A missing/empty store leaves the
-  // workspace empty, and we deliberately do NOT auto-select a lead: the user
-  // picks one, so a fresh load shows "No lead selected", never a leaked record.
+  // Initialize once. Genuine leads come from the durable store; the three
+  // labelled demo scenarios are layered on top unless the user removed them.
+  // We deliberately do NOT auto-select: the workspace opens on its welcome
+  // state, so a demo scenario is shown only when the user opens one.
   useEffect(() => {
     try {
-      const { leads: stored, migrated } = loadStoredLeads((key) => localStorage.getItem(key));
-      const saved = stored.map(withScore);
-      if (saved.length) setLeads(saved);
-      if (migrated) localStorage.setItem(LEADS_VERSION_KEY, String(LEADS_VERSION));
+      setLeads(loadStoredLeads((key) => localStorage.getItem(key)));
     } catch { /* Ignore unreadable local browser data; the workspace stays empty. */ }
     setHydrated(true);
   }, []);
@@ -80,20 +75,24 @@ export default function HomePage() {
   // Keep the detail panel on a known tab whenever the selection changes.
   useEffect(() => { setTab("overview"); }, [selectedId]);
 
+  // Persist only genuine leads — demos are re-derived from code, so they never
+  // enter the durable customer store and can never be duplicated or mistaken
+  // for a real record. The schema version is stamped on every write.
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(LEADS_STORAGE_KEY, JSON.stringify(leads));
+    localStorage.setItem(LEADS_STORAGE_KEY, JSON.stringify(leads.filter((lead) => !isDemoLead(lead))));
     localStorage.setItem(LEADS_VERSION_KEY, String(LEADS_VERSION));
   }, [leads, hydrated]);
 
   const selected = resolveSelectedLead(leads, selectedId);
-  const samplesPresent = useMemo(() => leads.some(isSampleLead), [leads]);
   const filteredLeads = useMemo(() => leads.filter((lead) => {
     const query = search.toLowerCase();
     return (!query || `${lead.name} ${lead.location} ${lead.propertyRequirement}`.toLowerCase().includes(query))
       && (priorityFilter === "All" || lead.priority === priorityFilter);
   }).sort((a, b) => b.score - a.score), [leads, search, priorityFilter]);
-  const stats = pipelineStats(leads);
+  const demoLeads = filteredLeads.filter(isDemoLead);
+  const genuineLeads = filteredLeads.filter((lead) => !isDemoLead(lead));
+  const hasDemos = leads.some(isDemoLead);
 
   function updateLead(id: string, patch: Partial<Lead>) {
     setLeads((current) => current.map((lead) => lead.id === id ? { ...lead, ...patch, updatedAt: new Date().toISOString() } : lead));
@@ -174,27 +173,27 @@ export default function HomePage() {
   function copy(text: string) {
     void navigator.clipboard?.writeText(text).then(() => setNotice({ text: "Copied to clipboard.", tone: "success" })).catch(() => setNotice({ text: "Clipboard access was unavailable.", tone: "error" }));
   }
-  // Deleting the selected lead clears the selection (to the "no lead selected"
-  // state) rather than silently jumping to another customer.
+  // Deleting the selected lead clears the selection (back to the welcome state)
+  // rather than silently jumping to another customer.
   function removeLead(id: string) {
     if (!window.confirm("Remove this lead from your saved list?")) return;
     setLeads((current) => current.filter((lead) => lead.id !== id));
     if (selectedId === id) setSelectedId(null);
   }
-  // Optional sample data is added only by this explicit action, never on load.
-  function loadSamples() {
-    setLeads((current) => [...buildSampleLeads(), ...removeSampleLeads(current)]);
-    setSidebarOpen(false);
+  // Removing demos never touches genuine leads, and the marker makes the choice
+  // stick across reloads.
+  function removeDemos() {
+    const selectedWasDemo = selected ? isDemoLead(selected) : false;
+    setLeads((current) => removeDemoLeads(current));
+    if (selectedWasDemo) setSelectedId(null);
+    try { localStorage.setItem(DEMOS_DISMISSED_KEY, "1"); } catch { /* best-effort preference */ }
   }
-  function removeSamples() {
-    const selectedIsSample = selected ? isSampleLead(selected) : false;
-    setLeads((current) => removeSampleLeads(current));
-    if (selectedIsSample) setSelectedId(null);
+  function restoreDemos() {
+    try { localStorage.removeItem(DEMOS_DISMISSED_KEY); } catch { /* best-effort preference */ }
+    setLeads((current) => [...buildDemoLeads(), ...current.filter((lead) => !isDemoLead(lead))]);
   }
   function openForm() { setShowForm(true); setSidebarOpen(false); }
   function selectLead(id: string) { setSelectedId(id); setSidebarOpen(false); }
-
-  const fieldClass = "h-9 w-full rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-2.5 text-sm outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]";
 
   return (
     <main id="main" className="min-h-screen">
@@ -203,7 +202,7 @@ export default function HomePage() {
       <div className="lg:flex lg:min-h-screen">
         {sidebarOpen && <button onClick={() => setSidebarOpen(false)} aria-label="Close leads list" className="fixed inset-0 z-30 bg-[var(--overlay-bg)] lg:hidden" />}
 
-        <aside id="leads-sidebar" aria-label="Leads" className={`fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <aside id="leads-sidebar" aria-label="Leads" className={`fixed inset-y-0 left-0 z-40 flex w-[288px] flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
             <Link href="/" className="flex min-w-0 items-center gap-2" aria-label="Masal AI — home">
               <Home size={18} className="shrink-0 text-[var(--brand)]" aria-hidden="true" />
@@ -216,51 +215,35 @@ export default function HomePage() {
           </div>
 
           <div className="p-3">
-            <button onClick={openForm} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"><Plus size={16} aria-hidden="true" /> Add Lead</button>
+            <button onClick={openForm} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--brand)] px-3 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"><Plus size={16} aria-hidden="true" /> Add Lead</button>
           </div>
 
           {leads.length > 0 && <div className="space-y-2.5 px-3 pb-3">
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads" aria-label="Search leads" className={`${fieldClass} pl-9`} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads" aria-label="Search leads" className="h-9 w-full rounded-md border border-[var(--border-input)] bg-[var(--bg)] pl-9 pr-3 text-sm outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]" />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1" role="group" aria-label="Filter leads by priority">
               {(["All", ...PRIORITIES] as const).map((item) => {
                 const active = priorityFilter === item;
-                const count = item === "All" ? stats.total : stats.byPriority[item];
-                return <button key={item} onClick={() => setPriorityFilter(item)} aria-pressed={active} className={`inline-flex items-center gap-1.5 text-xs font-semibold transition ${active ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text-soft)]"}`}>{item}<span className="tabular-nums text-[var(--text-muted)]">{count}</span></button>;
+                return <button key={item} onClick={() => setPriorityFilter(item)} aria-pressed={active} className={`text-xs font-semibold transition ${active ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text-soft)]"}`}>{item}</button>;
               })}
             </div>
           </div>}
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {leads.length > 0 ? (filteredLeads.length ? <div className="divide-y divide-[var(--border-soft)]">
-              {filteredLeads.map((lead) => {
-                const active = selectedId === lead.id;
-                return <button key={lead.id} onClick={() => selectLead(lead.id)} aria-pressed={active} className={`flex w-full flex-col gap-1.5 border-l-2 px-3.5 py-3 text-left transition ${active ? "border-l-[var(--brand)] bg-[var(--hover)]" : "border-l-transparent hover:bg-[var(--hover)]"}`}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="truncate text-sm font-semibold">{lead.name}</span>
-                    <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--text-soft)]">{lead.score}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className={`shrink-0 font-semibold uppercase tracking-wide ${PRIORITY_STYLES[lead.priority]}`}>{lead.priority}</span>
-                    {isSampleLead(lead) && <span className="shrink-0 rounded border border-[var(--border)] px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sample</span>}
-                    <span className="truncate text-[var(--text-muted)]">{lead.location.split(",")[0]}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[var(--text-muted)]">
-                    <span className="truncate">{lead.propertyRequirement}</span>
-                    <span aria-hidden="true">·</span><span className="truncate">{lead.budget}</span>
-                    <span aria-hidden="true">·</span><span className="truncate">{lead.timeline}</span>
-                  </div>
-                </button>;
-              })}
-            </div> : <p className="px-4 py-10 text-center text-sm text-[var(--text-muted)]">No leads match your filters.</p>) : <p className="px-4 py-10 text-center text-sm text-[var(--text-muted)]">No leads yet.</p>}
+          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+            {leads.length > 0 ? (
+              filteredLeads.length ? <nav aria-label="Saved leads">
+                <LeadSection title="Sample scenarios" leads={demoLeads} selectedId={selectedId} onSelect={selectLead} />
+                <LeadSection title="Your leads" leads={genuineLeads} selectedId={selectedId} onSelect={selectLead} />
+              </nav> : <p className="px-4 py-10 text-center text-sm text-[var(--text-muted)]">No leads match your filters.</p>
+            ) : <p className="px-4 py-10 text-center text-sm text-[var(--text-muted)]">No leads yet.</p>}
           </div>
 
           <div className="border-t border-[var(--border)] p-2">
-            {samplesPresent
-              ? <button onClick={removeSamples} className="w-full rounded-md px-3 py-2 text-left text-xs font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Remove sample leads</button>
-              : <button onClick={loadSamples} className="w-full rounded-md px-3 py-2 text-left text-xs font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Load sample leads</button>}
+            {hasDemos
+              ? <button onClick={removeDemos} className="w-full rounded-md px-3 py-2 text-left text-xs font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Remove sample scenarios</button>
+              : <button onClick={restoreDemos} className="w-full rounded-md px-3 py-2 text-left text-xs font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Show sample scenarios</button>}
           </div>
         </aside>
 
@@ -280,164 +263,55 @@ export default function HomePage() {
             </div>
 
             <div className="p-4 sm:p-5">
-              {!leads.length ? (
-                <section className="rounded-lg border border-dashed border-[var(--border)] px-6 py-20 text-center">
-                  <h2 className="text-base font-semibold tracking-tight">No leads yet</h2>
-                  <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--text-muted)]">Leads you add appear here with their priority score, analysis, and call prep.</p>
-                  <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-                    <button onClick={openForm} className="inline-flex items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"><Plus size={16} aria-hidden="true" /> Add your first lead</button>
-                    <button onClick={loadSamples} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] px-4 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]">Load sample leads</button>
-                  </div>
-                </section>
-              ) : !selected ? (
-                <section className="rounded-lg border border-dashed border-[var(--border)] px-6 py-20 text-center">
-                  <h2 className="text-base font-semibold tracking-tight">No lead selected</h2>
-                  <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--text-muted)]">Select a lead from the list to see its score, analysis, and call prep.</p>
-                  <button onClick={openForm} className="mt-5 inline-flex items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"><Plus size={16} aria-hidden="true" /> Add lead</button>
-                </section>
+              {!selected ? (
+                <WelcomeState hasDemos={hasDemos} onAdd={openForm} onRestore={restoreDemos} />
               ) : (
                 <div className="overflow-hidden rounded-lg border border-[var(--border)]">
                   <header className="border-b border-[var(--border)] p-4 sm:p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <button onClick={() => setSidebarOpen(true)} className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--text-muted)] transition hover:text-[var(--text)] lg:hidden"><ChevronLeft size={14} aria-hidden="true" /> All leads</button>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <button onClick={() => setSidebarOpen(true)} className="mb-1.5 inline-flex items-center gap-1 text-xs font-semibold text-[var(--text-muted)] transition hover:text-[var(--text)] lg:hidden"><ChevronLeft size={14} aria-hidden="true" /> All leads</button>
-                        <div className="flex items-center gap-2">
-                          <h2 className="truncate text-lg font-bold tracking-tight">{selected.name}</h2>
-                          {isSampleLead(selected) && <span className="shrink-0 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sample</span>}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="truncate text-lg font-bold tracking-tight">{leadDisplayName(selected)}</h2>
+                          {isDemoLead(selected) && <span className="shrink-0 rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sample scenario</span>}
                         </div>
-                        <p className="mt-0.5 truncate text-sm text-[var(--text-muted)]">{selected.location}</p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--text-muted)]">
+                          <span className={`font-semibold uppercase tracking-wide ${PRIORITY_STYLES[selected.priority]}`}>{selected.priority}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{selected.location}</span>
+                        </p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <label htmlFor="lead-status" className="sr-only">Lead status</label>
-                        <select id="lead-status" value={selected.status} onChange={(e) => setStatus(selected.id, e.target.value as LeadStatus)} className="h-9 rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--text-soft)] outline-none transition focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]">{STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
-                        <button onClick={() => removeLead(selected.id)} aria-label={`Delete ${selected.name}`} title="Delete lead" className="grid h-9 w-9 place-items-center rounded-md border border-[var(--border)] text-[var(--text-muted)] transition hover:border-[var(--danger-fg)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-fg)]"><Trash2 size={15} aria-hidden="true" /></button>
+                      <div className="flex shrink-0 items-center gap-4">
+                        <ScoreRing score={selected.score} priority={selected.priority} />
                       </div>
                     </div>
-                    <div className="mt-4 flex items-baseline gap-3">
-                      <span className="text-3xl font-bold tabular-nums leading-none">{selected.score}</span>
-                      <span className="text-sm text-[var(--text-muted)]">/ 100</span>
-                      <span className={`text-[11px] font-semibold uppercase tracking-wide ${PRIORITY_STYLES[selected.priority]}`}>{selected.priority}</span>
+
+                    <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-[var(--border-soft)] pt-5 sm:grid-cols-4">
+                      <SummaryItem label="Property" value={selected.propertyRequirement} />
+                      <SummaryItem label="Budget" value={selected.budget} />
+                      <SummaryItem label="Timeline" value={selected.timeline} />
+                      <SummaryItem label="Status" value={selected.status} />
+                    </dl>
+
+                    <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border-soft)] pt-4">
+                      <label htmlFor="lead-status" className="sr-only">Lead status</label>
+                      <select id="lead-status" value={selected.status} onChange={(e) => setStatus(selected.id, e.target.value as LeadStatus)} className="h-9 rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-2.5 text-xs font-semibold text-[var(--text-soft)] outline-none transition focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]">{STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+                      <button onClick={() => removeLead(selected.id)} aria-label={`Delete ${leadDisplayName(selected)}`} title="Delete lead" className="grid h-9 w-9 place-items-center rounded-md border border-[var(--border)] text-[var(--text-muted)] transition hover:border-[var(--danger-fg)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-fg)]"><Trash2 size={15} aria-hidden="true" /></button>
                     </div>
                   </header>
 
-                  <div className="flex items-center overflow-x-auto border-b border-[var(--border)] px-2" role="tablist" aria-label="Lead details">
+                  <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--border)] px-3 py-2" role="tablist" aria-label="Lead details">
                     {TABS.map((item) => {
                       const active = tab === item.id;
-                      return <button key={item.id} role="tab" aria-selected={active} onClick={() => setTab(item.id)} className={`-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${active ? "border-[var(--brand)] text-[var(--text)]" : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"}`}>{item.label}</button>;
+                      return <button key={item.id} role="tab" aria-selected={active} onClick={() => setTab(item.id)} className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold transition ${active ? "bg-[var(--surface-2)] text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}>{item.label}</button>;
                     })}
                   </div>
 
                   <div className="p-4 sm:p-5">
-                    {tab === "overview" && <div className="space-y-5">
-                      <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-                        <div><dt className="eyebrow">Location</dt><dd className="mt-1 text-sm leading-6 text-[var(--text-soft)]">{selected.location}</dd></div>
-                        <div><dt className="eyebrow">Property requirement</dt><dd className="mt-1 text-sm leading-6 text-[var(--text-soft)]">{selected.propertyRequirement}</dd></div>
-                        <div><dt className="eyebrow">Budget</dt><dd className="mt-1 text-sm leading-6 text-[var(--text-soft)]">{selected.budget}</dd></div>
-                        <div><dt className="eyebrow">Buying timeline</dt><dd className="mt-1 text-sm leading-6 text-[var(--text-soft)]">{selected.timeline}</dd></div>
-                      </dl>
-
-                      <div className="border-t border-[var(--border-soft)] pt-4">
-                        <div className="flex items-center justify-between gap-3"><h3 className="eyebrow">Customer message</h3><button onClick={() => copy(selected.message)} aria-label="Copy customer message" title="Copy message" className="text-[var(--text-muted)] transition hover:text-[var(--brand-text)]"><Copy size={13} aria-hidden="true" /></button></div>
-                        <p className="mt-1.5 border-l-2 border-[var(--border-input)] pl-3 text-sm leading-6 text-[var(--text-soft)]">{selected.message}</p>
-                      </div>
-
-                      {selected.scoreDetail && <div className="border-t border-[var(--border-soft)] pt-4">
-                        <h3 className="eyebrow">Score breakdown</h3>
-                        <div className="mt-3 grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
-                          {selected.scoreDetail.dimensions.map((dim) => <div key={dim.key}>
-                            <div className="flex items-center justify-between gap-3 text-xs">
-                              <span className="font-medium text-[var(--text-soft)]">{dim.label}</span>
-                              <span className="shrink-0 tabular-nums text-[var(--text-muted)]"><span className="font-semibold text-[var(--text)]">{dim.earned}</span>/{dim.max}</span>
-                            </div>
-                            <div className="mt-1 h-1 overflow-hidden rounded-full bg-[var(--border-soft)]" role="img" aria-label={`${dim.label}: ${dim.earned} of ${dim.max}`}>
-                              <div className="h-full rounded-full" style={{ width: `${dim.max ? (dim.earned / dim.max) * 100 : 0}%`, background: PRIORITY_BAR[selected.priority] }}/>
-                            </div>
-                          </div>)}
-                        </div>
-                      </div>}
-
-                      <div className="grid gap-x-6 gap-y-4 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-2">
-                        <BulletSection title="Positive signals" items={selected.scoreReasons}/>
-                        <div>
-                          <h4 className="eyebrow">Missing information</h4>
-                          {selected.scoreDetail?.missing.length ? <ul className="mt-2 space-y-1.5">{selected.scoreDetail.missing.map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-sm leading-6 text-[var(--text-muted)]"><CircleAlert size={14} className="mt-1 shrink-0 text-[var(--text-muted)]"/><span>{item}</span></li>)}</ul> : <p className="mt-2 text-sm text-[var(--text-muted)]">No critical qualification gaps recorded.</p>}
-                        </div>
-                      </div>
-
-                      <p className="border-t border-[var(--border-soft)] pt-3 text-xs leading-5 text-[var(--text-faint)]">{PRIORITY_NOTE}</p>
-                    </div>}
-
-                    {tab === "analysis" && <div className="space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h3 className="text-sm font-bold">AI analysis</h3>
-                        <div className="flex items-center gap-2">
-                          {selected.analysis ? <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-soft)]"><Check size={13}/>Ready</span>
-                            : busy === "analyze" ? <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]"><Loader2 size={12} className="animate-spin"/>Analyzing…</span>
-                            : <span className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Not run yet</span>}
-                          <button disabled={!!busy} onClick={() => void analyze(selected)} className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-input)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text)] transition hover:bg-[var(--hover)] disabled:opacity-60"><RefreshCw size={13} className={busy === "analyze" ? "animate-spin" : ""}/>{selected.analysis ? "Refresh" : "Run analysis"}</button>
-                        </div>
-                      </div>
-
-                      {busy === "analyze" && !selected.analysis ? <div className="flex items-center gap-2.5 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-4 text-sm text-[var(--text-muted)]"><Loader2 size={16} className="animate-spin"/>Analyzing this lead…</div>
-                        : selected.analysis ? <div className="space-y-4">
-                          <RichText className="text-sm leading-6 text-[var(--text-soft)]" text={selected.analysis.summary}/>
-
-                          <div className="rounded-md border-l-2 border-[var(--brand)] bg-[var(--accent-soft)] p-4 pl-3.5">
-                            <h3 className="eyebrow text-[var(--brand-text)]">Recommended next action</h3>
-                            <RichText className="mt-1.5 text-sm font-semibold leading-6" text={selected.analysis.nextAction}/>
-                          </div>
-
-                          <div><h3 className="eyebrow">Buying intent</h3><RichText className="mt-1.5 text-sm leading-6 text-[var(--text-soft)]" text={selected.analysis.intent}/><p className="mt-1.5 text-xs text-[var(--text-muted)]">Intent strength · <span className="font-semibold text-[var(--text-soft)]">{selected.analysis.intentStrength}</span></p></div>
-
-                          <div className="border-t border-[var(--border-soft)] pt-4">
-                            <div className="flex items-center justify-between gap-3"><h3 className="eyebrow">Suggested reply</h3><button onClick={() => copy(selected.analysis!.suggestedReply)} className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[var(--brand-text)] transition hover:bg-[var(--hover)]"><Copy size={12}/> Copy</button></div>
-                            <div className="mt-2 rounded-md border-l-2 border-[var(--brand)] bg-[var(--surface)] p-3.5"><RichText className="text-sm leading-6 text-[var(--text-soft)]" text={selected.analysis.suggestedReply}/></div>
-                            <p className="mt-1.5 text-xs leading-5 text-[var(--text-faint)]">{selected.analysis.confidenceNote}</p>
-                          </div>
-
-                          <div className="grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-2">
-                            <BulletSection title="Known facts" items={selected.analysis.knownFacts?.length ? selected.analysis.knownFacts : selected.analysis.requirements}/>
-                            <BulletSection title="Inferences" items={selected.analysis.inferences ?? []}/>
-                            <BulletSection title="Unknowns to clarify" items={selected.analysis.unknowns ?? []}/>
-                            <BulletSection title="Deal risks" items={selected.analysis.dealRisks?.length ? selected.analysis.dealRisks : selected.analysis.concerns}/>
-                          </div>
-
-                          <div className="border-t border-[var(--border-soft)] pt-4">
-                            <button onClick={() => setTab("copilot")} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] px-3.5 py-2 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]"><MessageCircle size={14}/> Ask about this lead</button>
-                          </div>
-                        </div> : <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-5"><div className="flex items-center gap-2 text-sm font-semibold"><Bot size={15} className="text-[var(--brand-text)]"/>No analysis yet</div><p className="text-sm leading-6 text-[var(--text-muted)]">Run the analysis to get a summary, a recommended next action, and a suggested reply for this lead.</p><button disabled={!!busy} onClick={() => void analyze(selected)} className="inline-flex items-center gap-2 rounded-md bg-[var(--brand)] px-3.5 py-2 text-xs font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)] disabled:opacity-60"><Bot size={14}/>Run analysis</button></div>}
-                    </div>}
-
-                    {tab === "brief" && <div className="space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5"><PhoneCall size={16} className="text-[var(--brand-text)]"/><div><h3 className="text-sm font-bold">Call brief</h3><p className="text-xs text-[var(--text-muted)]">A quick prep sheet grounded in this lead.</p></div></div>
-                        {selected.callBrief && <button onClick={() => copy([selected.callBrief!.objective, selected.callBrief!.openingLine, ...selected.callBrief!.talkingPoints].join("\n"))} aria-label="Copy call brief" title="Copy call brief" className="text-[var(--text-muted)] transition hover:text-[var(--brand-text)]"><Copy size={14}/></button>}
-                      </div>
-                      {!selected.callBrief ? <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-5"><p className="text-sm leading-6 text-[var(--text-muted)]">Generate an objective, opening line, talking points, and questions to run a sharper sales call.</p><button disabled={!!busy} onClick={() => void createBrief()} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-3.5 py-2 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)] disabled:opacity-60">{busy === "brief" ? <Loader2 size={14} className="animate-spin"/> : <PhoneCall size={14}/>}{busy === "brief" ? "Preparing…" : "Generate call brief"}</button></div>
-                        : <div>
-                          <RichText className="text-sm leading-6 text-[var(--text-soft)]" text={selected.callBrief.objective}/>
-                          <h4 className="eyebrow mt-4">Opening line</h4>
-                          <RichText className="mt-1.5 border-l-2 border-[var(--brand)] pl-3 text-sm leading-6 text-[var(--text-soft)]" text={selected.callBrief.openingLine}/>
-                          <div className="mt-4 grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-3"><BulletSection title="Talking points" items={selected.callBrief.talkingPoints}/><BulletSection title="Questions" items={selected.callBrief.questions}/><BulletSection title="Watch out for" items={selected.callBrief.watchOutFor}/></div>
-                        </div>}
-                    </div>}
-
-                    {tab === "copilot" && <div className="space-y-3">
-                      <div className="flex items-center gap-2.5"><Bot size={16} className="text-[var(--brand-text)]"/><div><h3 className="text-sm font-bold">Sales copilot</h3><p className="text-xs text-[var(--text-muted)]">Grounded in {selected.name}&apos;s enquiry{selected.analysis ? " and analysis" : ""}</p></div></div>
-                      <div className="max-h-[340px] space-y-3.5 overflow-y-auto">
-                        {!selected.chat.length && <div className="space-y-3"><p className="text-sm leading-6 text-[var(--text-muted)]">Ask a follow-up about {selected.name} — how to open the call, how to handle an objection, or how to tighten the suggested reply.</p><div className="flex flex-wrap gap-2">{COPILOT_PROMPTS.map((prompt) => <button key={prompt} onClick={() => setQuestion(prompt)} className="rounded-full border border-[var(--border-input)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text)]">{prompt}</button>)}</div></div>}
-                        {selected.chat.map((message) => <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm leading-6 ${message.role === "user" ? "rounded-br-sm bg-[var(--ink-solid)] text-[var(--on-ink)]" : "rounded-bl-sm bg-[var(--surface-2)] text-[var(--text-soft)]"}`}>{message.role === "user" ? <span className="whitespace-pre-wrap">{message.content}</span> : <RichText text={message.content}/>}</div></div>)}
-                        {busy === "chat" && <div className="flex justify-start"><div className="inline-flex items-center gap-2 rounded-lg rounded-bl-sm bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text-muted)]"><Loader2 size={14} className="animate-spin"/>Thinking…</div></div>}
-                      </div>
-                      <form onSubmit={sendQuestion} className="border-t border-[var(--border-soft)] pt-3">
-                        <label htmlFor="copilot-question" className="sr-only">Ask about this lead</label>
-                        <div className="flex items-end gap-2 rounded-md border border-[var(--border-input)] bg-[var(--surface)] p-1.5 transition focus-within:border-[var(--border-strong)] focus-within:ring-4 focus-within:ring-[var(--focus-ring)]">
-                          <textarea id="copilot-question" value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} rows={2} placeholder="Ask about this lead…" className="max-h-28 min-h-[40px] flex-1 resize-y bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-[var(--text-muted)]"/>
-                          <button disabled={!question.trim() || !!busy} aria-label="Send message" className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-[var(--brand)] text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)] disabled:opacity-50"><Send size={15}/></button>
-                        </div>
-                        <p className="mt-2 px-1 text-[11px] text-[var(--text-muted)]">Enter to send · Shift+Enter for a new line</p>
-                      </form>
-                    </div>}
+                    {tab === "overview" && <OverviewTab lead={selected} />}
+                    {tab === "analysis" && <AnalysisTab lead={selected} busy={busy} onAnalyze={analyze} onCopy={copy} onAsk={() => setTab("copilot")} />}
+                    {tab === "brief" && <BriefTab lead={selected} busy={busy} onBrief={createBrief} onCopy={copy} />}
+                    {tab === "copilot" && <CopilotTab lead={selected} busy={busy} question={question} setQuestion={setQuestion} onSubmit={sendQuestion} />}
                   </div>
                 </div>
               )}
@@ -458,26 +332,256 @@ export default function HomePage() {
 
       {notice && <div role={notice.tone === "error" ? "alert" : "status"} className="fixed bottom-5 right-5 z-50 flex max-w-[calc(100vw-2.5rem)] items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] py-3 pl-3.5 pr-3 text-sm shadow-[var(--shadow-pop)]"><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${notice.tone === "error" ? "bg-[var(--danger-bg)] text-[var(--danger-fg)]" : "bg-[var(--accent-soft)] text-[var(--brand-text)]"}`}>{notice.tone === "error" ? <CircleAlert size={15}/> : <CircleCheck size={15}/>}</span><span className="text-[var(--text-soft)]">{notice.text}</span><button onClick={() => setNotice(null)} aria-label="Dismiss message" className="ml-1 text-[var(--text-muted)] transition hover:text-[var(--text)]"><X size={15}/></button></div>}
 
-      {showForm && <div className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--overlay-bg)] sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false); }}><section role="dialog" aria-modal="true" aria-labelledby="new-lead-title" className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-[var(--surface-2)] p-5 shadow-[var(--shadow-pop)] sm:rounded-lg sm:p-6"><div className="mb-5 flex items-start justify-between gap-4"><div><h2 id="new-lead-title" className="text-lg font-bold tracking-tight">Add a lead</h2><p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Enter what you know — you can update the rest later.</p></div><button onClick={() => setShowForm(false)} aria-label="Close" className="rounded-md p-2 text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"><X size={17}/></button></div>
-        <form onSubmit={createLead} noValidate className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Customer name" htmlFor="lead-name" error={formErrors.name}><input id="lead-name" maxLength={120} value={form.name} onChange={(e) => updateForm("name", e.target.value)} placeholder="e.g. Priya Sharma" className={inputClass}/></Field>
-            <Field label="Location" htmlFor="lead-location" error={formErrors.location}><input id="lead-location" maxLength={160} value={form.location} onChange={(e) => updateForm("location", e.target.value)} placeholder="e.g. Whitefield, Bengaluru" className={inputClass}/></Field>
-            <Field label="Property requirement" htmlFor="lead-requirement" error={formErrors.propertyRequirement}><input id="lead-requirement" maxLength={300} value={form.propertyRequirement} onChange={(e) => updateForm("propertyRequirement", e.target.value)} placeholder="e.g. 3 BHK apartment" className={inputClass}/></Field>
-            <Field label="Budget" htmlFor="lead-budget" error={formErrors.budget}><input id="lead-budget" maxLength={120} value={form.budget} onChange={(e) => updateForm("budget", e.target.value)} placeholder="e.g. ₹1.2–1.5 Cr" className={inputClass}/></Field>
-            <Field label="Buying timeline" htmlFor="lead-timeline"><select id="lead-timeline" value={form.timeline} onChange={(e) => updateForm("timeline", e.target.value as LeadInput["timeline"])} className={inputClass}>{BUYING_TIMELINES.map((timeline) => <option key={timeline}>{timeline}</option>)}</select></Field>
-          </div>
-          <Field label="Customer message" htmlFor="lead-message" error={formErrors.message}><textarea id="lead-message" rows={5} maxLength={10000} value={form.message} onChange={(e) => updateForm("message", e.target.value)} placeholder="Paste the customer's enquiry…" className={inputClass}/></Field>
-          <div className="flex justify-end gap-2 border-t border-[var(--border-soft)] pt-4"><button type="button" onClick={() => setShowForm(false)} className="rounded-md border border-[var(--border-input)] px-4 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]">Cancel</button><button className="rounded-md bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]">Save and analyze</button></div>
-        </form>
-      </section></div>}
+      {showForm && <LeadForm form={form} errors={formErrors} onUpdate={updateForm} onSubmit={createLead} onClose={() => setShowForm(false)} />}
     </main>
   );
 }
 
 const inputClass = "mt-2 w-full rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:ring-4 focus:ring-[var(--focus-ring)]";
 function Field({ label, htmlFor, error, children }: { label: string; htmlFor: string; error?: string; children: React.ReactNode }) { return <div><label htmlFor={htmlFor} className="field-label">{label}</label>{children}{error && <p className="mt-1.5 text-xs text-[var(--danger-fg)]">{error}</p>}</div>; }
-function BulletSection({ title, items }: { title: string; items: string[] }) { return <div><h4 className="eyebrow">{title}</h4>{items.length ? <ul className="mt-2 space-y-1.5">{items.map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-sm leading-6 text-[var(--text-soft)]"><Check size={14} className="mt-1 shrink-0 text-[var(--text-muted)]"/><span>{item}</span></li>)}</ul> : <p className="mt-2 text-sm text-[var(--text-muted)]">None identified.</p>}</div>; }
+
+function LeadSection({ title, leads, selectedId, onSelect }: { title: string; leads: Lead[]; selectedId: string | null; onSelect: (id: string) => void }) {
+  if (!leads.length) return null;
+  return (
+    <section className="py-1">
+      <h3 className="px-3.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</h3>
+      <div className="divide-y divide-[var(--border-soft)]">
+        {leads.map((lead) => {
+          const active = selectedId === lead.id;
+          const demo = isDemoLead(lead);
+          return (
+            <button key={lead.id} onClick={() => onSelect(lead.id)} aria-pressed={active} className={`flex w-full flex-col gap-1 border-l-2 px-3.5 py-2.5 text-left transition ${active ? "border-l-[var(--brand)] bg-[var(--hover)]" : "border-l-transparent hover:bg-[var(--hover)]"}`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className={`truncate text-sm font-semibold ${demo ? "text-[var(--text-soft)]" : ""}`}>{leadDisplayName(lead)}</span>
+                <span className="shrink-0 text-xs font-semibold tabular-nums text-[var(--text-soft)]">{lead.score}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`shrink-0 font-semibold uppercase tracking-wide ${PRIORITY_STYLES[lead.priority]}`}>{lead.priority}</span>
+                <span className="truncate text-[var(--text-muted)]">{lead.location.split(",")[0]} · {lead.propertyRequirement.split(" ").slice(0, 3).join(" ")}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function WelcomeState({ hasDemos, onAdd, onRestore }: { hasDemos: boolean; onAdd: () => void; onRestore: () => void }) {
+  return (
+    <section className="rounded-lg border border-dashed border-[var(--border)] px-6 py-16 text-center sm:py-20">
+      <h2 className="text-lg font-semibold tracking-tight">Your workspace is ready</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--text-muted)]">
+        {hasDemos
+          ? "Open a sample scenario from the sidebar to see readiness, missing information, and the next action — or add a real enquiry with + Add Lead."
+          : "Add a real enquiry to see buyer readiness, missing information, and the next action in one place."}
+      </p>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <button onClick={onAdd} className="inline-flex items-center gap-2 rounded-md bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]"><Plus size={16} aria-hidden="true" /> Add your first lead</button>
+        {!hasDemos && <button onClick={onRestore} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] px-4 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]">Show sample scenarios</button>}
+      </div>
+    </section>
+  );
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><dt className="eyebrow">{label}</dt><dd className="mt-1 text-sm leading-6 text-[var(--text-soft)]">{value}</dd></div>;
+}
+
+function ScoreRing({ score, priority }: { score: number; priority: Priority }) {
+  const radius = 34;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.max(0, Math.min(100, score));
+  return (
+    <div className="relative grid place-items-center">
+      <svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label={`Score ${score} of 100`}>
+        <circle cx="42" cy="42" r={radius} fill="none" stroke="var(--border)" strokeWidth="6" />
+        <circle cx="42" cy="42" r={radius} fill="none" stroke={PRIORITY_BAR[priority]} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(pct / 100) * circumference} ${circumference}`} transform="rotate(-90 42 42)" />
+      </svg>
+      <div className="absolute grid place-items-center">
+        <span className="text-xl font-bold tabular-nums leading-none">{score}</span>
+        <span className="text-[10px] text-[var(--text-muted)]">/ 100</span>
+      </div>
+    </div>
+  );
+}
+
+function DecisionCard({ title, tone = "plain", children }: { title: string; tone?: "plain" | "brand"; children: React.ReactNode }) {
+  const toneClass = tone === "brand" ? "border-l-2 border-[var(--brand)] bg-[var(--accent-soft)] pl-3.5" : "border border-[var(--border)] bg-[var(--surface-2)]";
+  return <section className={`rounded-lg p-4 ${toneClass}`}><h3 className="eyebrow">{title}</h3><div className="mt-2">{children}</div></section>;
+}
+
+function DecisionList({ items, empty, tone = "fact" }: { items: string[]; empty: string; tone?: "fact" | "question" | "risk" }) {
+  if (!items.length) return <p className="text-sm leading-6 text-[var(--text-muted)]">{empty}</p>;
+  const Icon = tone === "fact" ? Check : CircleAlert;
+  const iconClass = tone === "risk" ? "text-[var(--danger-fg)]" : "text-[var(--text-muted)]";
+  return <ul className="space-y-1.5">{items.map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-sm leading-6 text-[var(--text-soft)]"><Icon size={14} className={`mt-1 shrink-0 ${iconClass}`} aria-hidden="true" /><span>{item}</span></li>)}</ul>;
+}
+
+function OverviewTab({ lead }: { lead: Lead }) {
+  const analysis = lead.analysis;
+  const missing = lead.scoreDetail?.missing ?? [];
+  const knownFacts = analysis?.knownFacts?.length ? analysis.knownFacts : lead.scoreReasons;
+  const openQuestions = analysis?.unknowns?.length ? analysis.unknowns : missing;
+  const dealRisks = analysis?.dealRisks?.length ? analysis.dealRisks : (analysis?.concerns ?? []);
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <DecisionCard title="Recommended next action" tone="brand">
+          {analysis
+            ? <RichText className="text-sm font-semibold leading-6" text={analysis.nextAction} />
+            : <p className="text-sm leading-6 text-[var(--text-soft)]">{missing[0] ? `Run the analysis, then confirm first: ${missing[0].toLowerCase()}` : "Run the analysis to get a recommended next action for this lead."}</p>}
+        </DecisionCard>
+        <DecisionCard title="Open questions"><DecisionList items={openQuestions} empty="No open questions recorded." tone="question" /></DecisionCard>
+        <DecisionCard title="Known facts"><DecisionList items={knownFacts} empty="No facts recorded yet." tone="fact" /></DecisionCard>
+        <DecisionCard title="Deal risks"><DecisionList items={dealRisks} empty={analysis ? "None identified." : "Run the analysis to surface deal risks."} tone="risk" /></DecisionCard>
+      </div>
+
+      {lead.scoreDetail && <section className="rounded-lg border border-[var(--border)] p-4">
+        <h3 className="eyebrow">Score breakdown</h3>
+        <div className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {lead.scoreDetail.dimensions.map((dim) => <div key={dim.key}>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium text-[var(--text-soft)]">{dim.label}</span>
+              <span className="shrink-0 tabular-nums text-[var(--text-muted)]"><span className="font-semibold text-[var(--text)]">{dim.earned}</span>/{dim.max}</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--border-soft)]" role="img" aria-label={`${dim.label}: ${dim.earned} of ${dim.max}`}>
+              <div className="h-full rounded-full" style={{ width: `${dim.max ? (dim.earned / dim.max) * 100 : 0}%`, background: PRIORITY_BAR[lead.priority] }} />
+            </div>
+          </div>)}
+        </div>
+        <p className="mt-3 border-t border-[var(--border-soft)] pt-3 text-xs leading-5 text-[var(--text-faint)]">{PRIORITY_NOTE}</p>
+      </section>}
+
+      <section className="rounded-lg border border-[var(--border)] p-4">
+        <div className="flex items-center justify-between gap-3"><h3 className="eyebrow">Customer message</h3><button onClick={() => copyText(lead.message)} aria-label="Copy customer message" title="Copy message" className="text-[var(--text-muted)] transition hover:text-[var(--brand-text)]"><Copy size={13} aria-hidden="true" /></button></div>
+        <p className="mt-2 border-l-2 border-[var(--border-input)] pl-3 text-sm leading-6 text-[var(--text-soft)]">{lead.message}</p>
+      </section>
+    </div>
+  );
+}
+
+// The copy button inside a presentational tab needs the same clipboard routine;
+// it is threaded in as a prop from the page, but the Overview tab is standalone,
+// so it falls back to a no-op local handler to avoid a false success toast.
+function copyText(text: string) {
+  void navigator.clipboard?.writeText(text).catch(() => undefined);
+}
+
+function AnalysisTab({ lead, busy, onAnalyze, onCopy, onAsk }: { lead: Lead; busy: string; onAnalyze: (lead: Lead) => void; onCopy: (text: string) => void; onAsk: () => void }) {
+  const analysis = lead.analysis;
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-bold">AI analysis</h3>
+        <div className="flex items-center gap-2">
+          {analysis ? <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-soft)]"><Check size={13} aria-hidden="true" />Ready</span>
+            : busy === "analyze" ? <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]"><Loader2 size={12} className="animate-spin" aria-hidden="true" />Analyzing…</span>
+            : <span className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Not run yet</span>}
+          <button disabled={!!busy} onClick={() => onAnalyze(lead)} className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-input)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text)] transition hover:bg-[var(--hover)] disabled:opacity-60"><RefreshCw size={13} className={busy === "analyze" ? "animate-spin" : ""} aria-hidden="true" />{analysis ? "Refresh" : "Run analysis"}</button>
+        </div>
+      </div>
+
+      {busy === "analyze" && !analysis ? <div className="flex items-center gap-2.5 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-4 text-sm text-[var(--text-muted)]"><Loader2 size={16} className="animate-spin" aria-hidden="true" />Analyzing this lead…</div>
+        : analysis ? <div className="space-y-4">
+          <RichText className="text-sm leading-6 text-[var(--text-soft)]" text={analysis.summary} />
+
+          <div className="rounded-md border-l-2 border-[var(--brand)] bg-[var(--accent-soft)] p-4 pl-3.5">
+            <h3 className="eyebrow text-[var(--brand-text)]">Recommended next action</h3>
+            <RichText className="mt-1.5 text-sm font-semibold leading-6" text={analysis.nextAction} />
+          </div>
+
+          <div><h3 className="eyebrow">Buying intent</h3><RichText className="mt-1.5 text-sm leading-6 text-[var(--text-soft)]" text={analysis.intent} /><p className="mt-1.5 text-xs text-[var(--text-muted)]">Intent strength · <span className="font-semibold text-[var(--text-soft)]">{analysis.intentStrength}</span></p></div>
+
+          <div className="border-t border-[var(--border-soft)] pt-4">
+            <div className="flex items-center justify-between gap-3"><h3 className="eyebrow">Suggested reply</h3><button onClick={() => onCopy(analysis.suggestedReply)} className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[var(--brand-text)] transition hover:bg-[var(--hover)]"><Copy size={12} aria-hidden="true" /> Copy</button></div>
+            <div className="mt-2 rounded-md border-l-2 border-[var(--brand)] bg-[var(--surface)] p-3.5"><RichText className="text-sm leading-6 text-[var(--text-soft)]" text={analysis.suggestedReply} /></div>
+            <p className="mt-1.5 text-xs leading-5 text-[var(--text-faint)]">{analysis.confidenceNote}</p>
+          </div>
+
+          <div className="grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-2">
+            <BulletSection title="Known facts" items={analysis.knownFacts?.length ? analysis.knownFacts : analysis.requirements} />
+            <BulletSection title="Inferences" items={analysis.inferences ?? []} />
+            <BulletSection title="Unknowns to clarify" items={analysis.unknowns ?? []} />
+            <BulletSection title="Deal risks" items={analysis.dealRisks?.length ? analysis.dealRisks : analysis.concerns} />
+          </div>
+
+          <div className="border-t border-[var(--border-soft)] pt-4">
+            <button onClick={onAsk} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] px-3.5 py-2 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]"><MessageCircle size={14} aria-hidden="true" /> Ask about this lead</button>
+          </div>
+        </div> : <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-5"><div className="flex items-center gap-2 text-sm font-semibold"><Bot size={15} className="text-[var(--brand-text)]" aria-hidden="true" />No analysis yet</div><p className="text-sm leading-6 text-[var(--text-muted)]">Run the analysis to get a summary, a recommended next action, and a suggested reply for this lead.</p><button disabled={!!busy} onClick={() => onAnalyze(lead)} className="inline-flex items-center gap-2 rounded-md bg-[var(--brand)] px-3.5 py-2 text-xs font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)] disabled:opacity-60"><Bot size={14} aria-hidden="true" />Run analysis</button></div>}
+    </div>
+  );
+}
+
+function BriefTab({ lead, busy, onBrief, onCopy }: { lead: Lead; busy: string; onBrief: () => void; onCopy: (text: string) => void }) {
+  const brief = lead.callBrief;
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5"><PhoneCall size={16} className="text-[var(--brand-text)]" aria-hidden="true" /><div><h3 className="text-sm font-bold">Call brief</h3><p className="text-xs text-[var(--text-muted)]">A quick prep sheet grounded in this lead.</p></div></div>
+        {brief && <button onClick={() => onCopy([brief.objective, brief.openingLine, ...brief.talkingPoints].join("\n"))} aria-label="Copy call brief" title="Copy call brief" className="text-[var(--text-muted)] transition hover:text-[var(--brand-text)]"><Copy size={14} aria-hidden="true" /></button>}
+      </div>
+      {!brief ? <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-5"><p className="text-sm leading-6 text-[var(--text-muted)]">Generate an objective, opening line, talking points, and questions to run a sharper sales call.</p><button disabled={!!busy} onClick={onBrief} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-3.5 py-2 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)] disabled:opacity-60">{busy === "brief" ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <PhoneCall size={14} aria-hidden="true" />}{busy === "brief" ? "Preparing…" : "Generate call brief"}</button></div>
+        : <div>
+          <RichText className="text-sm leading-6 text-[var(--text-soft)]" text={brief.objective} />
+          <h4 className="eyebrow mt-4">Opening line</h4>
+          <RichText className="mt-1.5 border-l-2 border-[var(--brand)] pl-3 text-sm leading-6 text-[var(--text-soft)]" text={brief.openingLine} />
+          <div className="mt-4 grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-3"><BulletSection title="Talking points" items={brief.talkingPoints} /><BulletSection title="Questions" items={brief.questions} /><BulletSection title="Watch out for" items={brief.watchOutFor} /></div>
+        </div>}
+    </div>
+  );
+}
+
+function CopilotTab({ lead, busy, question, setQuestion, onSubmit }: { lead: Lead; busy: string; question: string; setQuestion: (value: string) => void; onSubmit: (event: React.FormEvent) => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2.5"><Bot size={16} className="text-[var(--brand-text)]" aria-hidden="true" /><div><h3 className="text-sm font-bold">Sales copilot</h3><p className="text-xs text-[var(--text-muted)]">Grounded in {leadDisplayName(lead)}&apos;s enquiry{lead.analysis ? " and analysis" : ""}</p></div></div>
+      <div className="max-h-[340px] space-y-3.5 overflow-y-auto">
+        {!lead.chat.length && <div className="space-y-3"><p className="text-sm leading-6 text-[var(--text-muted)]">Ask a follow-up about {leadDisplayName(lead)} — how to open the call, how to handle an objection, or how to tighten the suggested reply.</p><div className="flex flex-wrap gap-2">{COPILOT_PROMPTS.map((prompt) => <button key={prompt} onClick={() => setQuestion(prompt)} className="rounded-full border border-[var(--border-input)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--text)]">{prompt}</button>)}</div></div>}
+        {lead.chat.map((message) => <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm leading-6 ${message.role === "user" ? "rounded-br-sm bg-[var(--ink-solid)] text-[var(--on-ink)]" : "rounded-bl-sm bg-[var(--surface-2)] text-[var(--text-soft)]"}`}>{message.role === "user" ? <span className="whitespace-pre-wrap">{message.content}</span> : <RichText text={message.content} />}</div></div>)}
+        {busy === "chat" && <div className="flex justify-start"><div className="inline-flex items-center gap-2 rounded-lg rounded-bl-sm bg-[var(--surface-2)] px-3.5 py-2.5 text-sm text-[var(--text-muted)]"><Loader2 size={14} className="animate-spin" aria-hidden="true" />Thinking…</div></div>}
+      </div>
+      <form onSubmit={onSubmit} className="border-t border-[var(--border-soft)] pt-3">
+        <label htmlFor="copilot-question" className="sr-only">Ask about this lead</label>
+        <div className="flex items-end gap-2 rounded-md border border-[var(--border-input)] bg-[var(--surface)] p-1.5 transition focus-within:border-[var(--border-strong)] focus-within:ring-4 focus-within:ring-[var(--focus-ring)]">
+          <textarea id="copilot-question" value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} rows={2} placeholder="Ask about this lead…" className="max-h-28 min-h-[40px] flex-1 resize-y bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-[var(--text-muted)]" />
+          <button disabled={!question.trim() || !!busy} aria-label="Send message" className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-[var(--brand)] text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)] disabled:opacity-50"><Send size={15} aria-hidden="true" /></button>
+        </div>
+        <p className="mt-2 px-1 text-[11px] text-[var(--text-muted)]">Enter to send · Shift+Enter for a new line</p>
+      </form>
+    </div>
+  );
+}
+
+function LeadForm({ form, errors, onUpdate, onSubmit, onClose }: {
+  form: LeadInput;
+  errors: Partial<Record<keyof LeadInput, string>>;
+  onUpdate: <K extends keyof LeadInput>(key: K, value: LeadInput[K]) => void;
+  onSubmit: (event: React.FormEvent) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--overlay-bg)] sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="new-lead-title" className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-[var(--surface-2)] p-5 shadow-[var(--shadow-pop)] sm:rounded-lg sm:p-6">
+        <div className="mb-5 flex items-start justify-between gap-4"><div><h2 id="new-lead-title" className="text-lg font-bold tracking-tight">Add a lead</h2><p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Enter what you know — you can update the rest later.</p></div><button onClick={onClose} aria-label="Close" className="rounded-md p-2 text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]"><X size={17} aria-hidden="true" /></button></div>
+        <form onSubmit={onSubmit} noValidate className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Customer name" htmlFor="lead-name" error={errors.name}><input id="lead-name" maxLength={120} value={form.name} onChange={(e) => onUpdate("name", e.target.value)} placeholder="e.g. Priya Sharma" className={inputClass}/></Field>
+            <Field label="Location" htmlFor="lead-location" error={errors.location}><input id="lead-location" maxLength={160} value={form.location} onChange={(e) => onUpdate("location", e.target.value)} placeholder="e.g. Whitefield, Bengaluru" className={inputClass}/></Field>
+            <Field label="Property requirement" htmlFor="lead-requirement" error={errors.propertyRequirement}><input id="lead-requirement" maxLength={300} value={form.propertyRequirement} onChange={(e) => onUpdate("propertyRequirement", e.target.value)} placeholder="e.g. 3 BHK apartment" className={inputClass}/></Field>
+            <Field label="Budget" htmlFor="lead-budget" error={errors.budget}><input id="lead-budget" maxLength={120} value={form.budget} onChange={(e) => onUpdate("budget", e.target.value)} placeholder="e.g. ₹1.2–1.5 Cr" className={inputClass}/></Field>
+            <Field label="Buying timeline" htmlFor="lead-timeline"><select id="lead-timeline" value={form.timeline} onChange={(e) => onUpdate("timeline", e.target.value as LeadInput["timeline"])} className={inputClass}>{BUYING_TIMELINES.map((timeline) => <option key={timeline}>{timeline}</option>)}</select></Field>
+          </div>
+          <Field label="Customer message" htmlFor="lead-message" error={errors.message}><textarea id="lead-message" rows={5} maxLength={10000} value={form.message} onChange={(e) => onUpdate("message", e.target.value)} placeholder="Paste the customer's enquiry…" className={inputClass}/></Field>
+          <div className="flex justify-end gap-2 border-t border-[var(--border-soft)] pt-4"><button type="button" onClick={onClose} className="rounded-md border border-[var(--border-input)] px-4 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)]">Cancel</button><button className="rounded-md bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--on-brand)] transition hover:bg-[var(--brand-strong)]">Save and analyze</button></div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function BulletSection({ title, items }: { title: string; items: string[] }) { return <div><h4 className="eyebrow">{title}</h4>{items.length ? <ul className="mt-2 space-y-1.5">{items.map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-sm leading-6 text-[var(--text-soft)]"><Check size={14} className="mt-1 shrink-0 text-[var(--text-muted)]" aria-hidden="true" /><span>{item}</span></li>)}</ul> : <p className="mt-2 text-sm text-[var(--text-muted)]">None identified.</p>}</div>; }
 
 // Minimal, dependency-free renderer for the light Markdown the model may return
 // (inline bold / code and "-" bullet lines). It emits React nodes — never raw

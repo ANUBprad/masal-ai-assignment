@@ -13,6 +13,7 @@ Masal AI helps a salesperson triage inbound leads quickly:
 - Ask follow-up questions in a chat that is grounded in both the lead's details and its existing AI analysis.
 - Rank and filter a pipeline of leads with a transparent, deterministic 100-point score (Act Now / Follow Up / Nurture) and a visible breakdown.
 - Generate a short call brief before picking up the phone.
+- Start from three clearly labelled demo scenarios (one per priority band) that show the workspace end to end — remove them in one click, or add a real enquiry; labelled demos never mix with your own leads.
 
 The product is a Next.js application with a static landing page at `/`, a client-side workspace at `/dashboard`, and server-side API routes. It is a focused demo, not a production system — see [Limitations](#ai-behaviour-and-limitations) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -39,8 +40,8 @@ The five assignment requirements map to concrete, implemented behaviour:
 | **1. Lead intake** | Captures name, location, property requirement, budget, buying timeline (from a fixed list), and a free-text customer message. | `app/dashboard/page.tsx` (form), `types/lead.ts`, `lib/validation.ts` |
 | **2. Real AI-based lead analysis** | Each lead can be analysed by a server-side call to an external LLM provider (Groq by default), returning a summary, customer intent, key requirements, objections/concerns, separated known facts / inferences / unknowns / deal risks, a recommended next action, and a suggested reply. | `app/api/analyze/route.ts`, `lib/providers.ts`, `lib/prompts.ts` |
 | **3. Contextual conversational interface** | A per-lead copilot that answers the salesperson's follow-up questions using the selected lead's details, its current AI analysis, and that lead's conversation history. | `app/api/chat/route.ts`, `lib/providers.ts` |
-| **4. Multiple leads and prioritization** | Leads coexist in a list, each with its own analysis and chat. A deterministic 100-point score plus Act Now / Follow Up / Nurture grouping, search, and filtering rank the pipeline. | `app/dashboard/page.tsx`, `lib/scoring.ts` |
-| **5. Scan-friendly presentation** | A dedicated "Lead intelligence" panel surfaces the AI outputs as short, labelled blocks; the list shows score, priority, location, and timeline at a glance. | `app/dashboard/page.tsx` |
+| **4. Multiple leads and prioritization** | Leads coexist in a sidebar (the labelled demo scenarios grouped separately from your own leads), each with its own analysis and chat. A deterministic 100-point score plus Act Now / Follow Up / Nurture grouping, search, and filtering rank the pipeline. | `app/dashboard/page.tsx`, `lib/scoring.ts`, `lib/demos.ts` |
+| **5. Scan-friendly presentation** | The selected lead opens on a short summary with a score ring, then a decision section (recommended next action, open questions, known facts, deal risks) and compact Overview / AI Analysis / Call Brief / Sales Copilot tabs. The sidebar shows score, priority, and location at a glance. | `app/dashboard/page.tsx` |
 
 The five requirements are covered by the shipped code above. Live AI responses depend on a configured server key and network access (see [Environment variables](#environment-variables)).
 
@@ -184,7 +185,7 @@ No secret belongs in `next.config.ts`, the repository, or any `NEXT_PUBLIC_*` va
 - **Probabilistic output.** Model responses are generated, not deterministic. They can be incomplete or wrong and should always be reviewed by the salesperson before acting or sending a reply. The suggested reply is a draft, not a commitment.
 - **Grounding.** Analysis is generated only from the six intake fields. Chat is generated from those fields, the lead's current analysis, and the recent conversation. The prompts instruct the model not to invent availability, prices, or preferences, but this is a guideline, not a guarantee.
 - **Score is a heuristic.** The Act Now / Follow Up / Nurture ranking is a transparent, deterministic 100-point score (`lib/scoring.ts`), independent of the AI, and is explicitly not a prediction of conversion or a qualification status. It is computed only from recorded lead data and the lead's status.
-- **Storage.** Leads, analyses, chat, and call briefs are stored in the browser's `localStorage` only (key `masal-ai-leads-v1`). There is no server database. Data is per-browser and per-device, is lost if site data is cleared, and is not shared between users.
+- **Storage.** Leads, analyses, chat, and call briefs are stored in the browser's `localStorage` only (key `masal-ai-leads-v1`). There is no server database. Data is per-browser and per-device, is lost if site data is cleared, and is not shared between users. The three example demo scenarios are rebuilt from code on every load and are never written to storage, so they cannot duplicate or be mistaken for a real lead.
 - **Rate limiting.** AI routes are limited per client IP (see below); the limit is in memory and per server instance, so it is not a global cap.
 - **Deployment.** The app targets a Node.js-capable host (Vercel is the documented path). Deployment is not yet verified in this repository — the live URL is a placeholder.
 

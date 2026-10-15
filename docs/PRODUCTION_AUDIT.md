@@ -58,15 +58,16 @@ environment inside Route Handlers and attached only to the outbound provider req
 ## 4. Data handling and privacy
 
 - Leads, analyses, chat, and call briefs are stored only in the browser's `localStorage` (`masal-ai-leads-v1`). There is no server-side store for lead content.
-- Navigating to the dashboard never seeds demo leads and never clears a genuine lead. Seeded records are removed by a reserved `demo-` id prefix (or the legacy `demo: true` flag), so a user-created lead can never match.
-- An empty workspace stays empty and shows the proper empty state.
+- The three example demo scenarios are re-derived from code on each load and are never written to the durable store, so they cannot be duplicated or mistaken for a genuine lead. Each is labelled `(Dummy)` in the UI and can be removed in one click; the removal sticks via a preference marker (`masal-ai-demos-dismissed`).
+- Demo records are detected by a `demo: true` flag or a reserved `demo-` id (including the legacy `sample-` family), never by name, so a customer who happens to share a demo's name is never dropped or mislabelled.
+- The workspace opens on a welcome state and never auto-selects a scenario; an empty genuine-lead list stays empty.
 - Requests that reach an AI route send only the relevant lead fields to the configured provider; the provider key stays server-side.
 
 ## 5. Accessibility
 
 - Semantic landmarks (`main`, `header`, `footer`, `nav`, `h1`/`h2`/`h3`), a visible-content skip link on every page, labelled controls, and accessible link text.
 - Focus styles are defined globally (`:focus-visible`), so keyboard navigation is visible.
-- Layouts are responsive (stacked on mobile, row on desktop) and use the single pure-black token set, which meets contrast for body and button text.
+- Layouts are responsive (stacked on mobile, row on desktop) and use the two centralized theme token sets (dark and light), which meet contrast for body and button text.
 - `prefers-reduced-motion` is honoured (`app/globals.css`); the landing page introduces no animation.
 
 ## 6. Known limitations (not implemented)
@@ -77,13 +78,12 @@ per-instance. Do not use this demo with real customer data.
 
 ## 7. Verification performed
 
-Commands run against this revision: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`,
-plus a **local** production server (`next start`) checked over HTTP.
+Commands run against this revision: `npm test`, `npm run typecheck`, `npm run lint`.
 
-- Tests: 71 passing (includes root-route / dashboard-nav wiring in `tests/landing.test.ts`).
-- Typecheck and lint: clean (lint reports only pre-existing config warnings).
-- Build: succeeds; `/`, `/privacy`, `/terms`, `/icon.svg`, `/opengraph-image`, `/robots.txt`, `/sitemap.xml` prerender as static, `/dashboard` is a static shell, and the three API routes remain dynamic.
-- Local HTTP checks: `/`, `/dashboard`, `/privacy`, `/terms` return `200`; the landing page serves the expected title, description, canonical, and Open Graph URL; `/dashboard` carries `noindex`; `/api/analyze` is reachable and returns `400` for an invalid body.
+- Tests: 101 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy and real-data preview (`tests/landing.test.ts`), and the theme tokens (`tests/theme.test.ts`).
+- Typecheck (`tsc --noEmit`) and lint: clean (lint reports only pre-existing config warnings).
+
+On the previous revision a production build and a local `next start` pass were also run: the build succeeded; `/`, `/privacy`, `/terms`, `/icon.svg`, `/opengraph-image`, `/robots.txt`, `/sitemap.xml` prerendered as static; `/dashboard` was a static shell; the three API routes stayed dynamic; and over HTTP `/`, `/dashboard`, `/privacy`, `/terms` returned `200` (the landing page serving the expected title, description, canonical, and Open Graph URL; `/dashboard` carrying `noindex`; `/api/analyze` returning `400` for an invalid body). Those build and local-server steps were **not** re-run for this revision.
 
 **Not verified:** visual/browser layout checks (no browser tooling was available in this
 environment) and the deployed Vercel build. A Git push does not imply production is updated —

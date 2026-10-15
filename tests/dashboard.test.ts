@@ -52,13 +52,15 @@ test("the Content-Security-Policy header is applied to every route", async () =>
 test("both Add Lead actions open the same intake form", () => {
   const source = dashboardSource();
   assert.ok(source.includes("function openForm() { setShowForm(true); setSidebarOpen(false); }"), "a single opener must set the form open");
-  assert.ok((source.match(/onClick=\{openForm\}/g) ?? []).length >= 2, "the sidebar and the empty state must both open the form");
+  assert.ok(source.includes("onClick={openForm}"), "the sidebar must open the form");
+  assert.ok(source.includes("onAdd={openForm}"), "the welcome state must open the same form");
   assert.ok(source.includes("{showForm &&"), "the form must render only while open");
 });
 
 test("the intake form can be closed from every control", () => {
   const source = dashboardSource();
-  assert.ok((source.match(/setShowForm\(false\)/g) ?? []).length >= 3, "backdrop, close, and cancel must all close the form");
+  assert.ok((source.match(/onClose/g) ?? []).length >= 3, "backdrop, close, and cancel must all close the form");
+  assert.ok(source.includes("setShowForm(false)"), "closing must clear the open flag");
 });
 
 test("the intake form submits through createLead and the shared store", () => {
@@ -97,12 +99,13 @@ test("a value the form accepts survives the persisted-store round trip", () => {
   assert.equal(reloaded[0].timeline, "Within 30 days");
 });
 
-// --- Data integrity: empty by default, no auto-selection, samples explicit ---
+// --- Data integrity: demos present by default, no auto-selection, genuine-only persistence ---
 
 test("the workspace does not auto-select a lead on load", () => {
   const source = dashboardSource();
-  assert.ok(!source.includes("setSelectedId(saved[0].id)"), "a fresh load must not auto-select a lead");
-  assert.ok(source.includes("if (saved.length) setLeads(saved);"), "an empty store must leave the workspace empty");
+  assert.ok(source.includes("setLeads(loadStoredLeads((key) => localStorage.getItem(key)))"), "startup must load the demos plus genuine leads");
+  assert.ok(!source.includes("setSelectedId(saved"), "a fresh load must not auto-select a lead");
+  assert.ok(source.includes("const selected = resolveSelectedLead(leads, selectedId)"), "selection must go through the strict resolver");
 });
 
 test("deleting the selected lead clears the selection instead of jumping to another", () => {
@@ -111,17 +114,22 @@ test("deleting the selected lead clears the selection instead of jumping to anot
   assert.ok(!source.includes("setSelectedId(remaining[0]"), "deleting must not fall through to another customer");
 });
 
-test("the workspace is a sidebar layout with the theme toggle", () => {
+test("the workspace is a sidebar layout with grouped leads, a score ring, and compact tabs", () => {
   const source = dashboardSource();
   assert.ok(source.includes('id="leads-sidebar"'), "the leads list must live in a sidebar");
   assert.ok(source.includes("ThemeToggle"), "the sidebar must offer the theme toggle");
-  assert.ok(source.includes("Overview"), "the first detail tab must be renamed Overview");
+  assert.ok(source.includes('title="Sample scenarios"') && source.includes('title="Your leads"'), "demos and genuine leads must be grouped");
+  for (const label of ["Overview", "AI Analysis", "Call Brief", "Sales Copilot"]) assert.ok(source.includes(`label: "${label}"`), `missing tab ${label}`);
+  assert.ok(source.includes("ScoreRing"), "the detail header must show the score ring");
+  assert.ok(source.includes("Score breakdown"), "the detail view must show the explainable score breakdown");
+  for (const heading of ["Recommended next action", "Open questions", "Known facts", "Deal risks"]) assert.ok(source.includes(heading), `decision section missing "${heading}"`);
 });
 
-test("optional sample data is only produced by the explicit action", () => {
+test("only genuine leads are persisted; demos are re-derived and removable", () => {
   const source = dashboardSource();
-  assert.equal((source.match(/buildSampleLeads\(/g) ?? []).length, 1, "exactly one call site for the sample builder");
-  assert.ok(source.includes("function loadSamples()"), "samples load through a named action");
-  assert.ok(source.includes("removeSampleLeads"), "samples must be removable");
-  assert.ok(source.includes("isSampleLead(lead)"), "sample rows must be identifiable in the list");
+  assert.ok(source.includes("leads.filter((lead) => !isDemoLead(lead))"), "persistence must write genuine leads only");
+  assert.ok(source.includes("removeDemoLeads("), "demos must be removable");
+  assert.ok(source.includes("DEMOS_DISMISSED_KEY"), "removal must stick via the dismissed marker");
+  assert.ok(source.includes("leadDisplayName("), "rows must render the (Dummy) label for demos");
+  assert.ok(source.includes("isDemoLead(lead)"), "demo rows must be identifiable in the list");
 });
