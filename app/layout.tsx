@@ -37,10 +37,12 @@ export const viewport: Viewport = {
   ]
 };
 
-// Runs before first paint so the correct theme is applied with no flash. The
-// storage key and attribute must match lib/theme.ts and the client toggle; the
-// inline script is allowed by the CSP's script-src 'unsafe-inline'.
-const themeScript = `(function(){try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var s=localStorage.getItem(k);var t=(s==="light"||s==="dark")?s:(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)},t);}catch(e){document.documentElement.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)},${JSON.stringify(DEFAULT_THEME)});}})();`;
+// Runs before first paint so the correct theme is applied with no flash, and
+// marks the document as script-enabled (`.js`) so the landing page's scroll
+// reveal can start hidden without ever hiding content when JavaScript is off.
+// The storage key and attribute must match lib/theme.ts and the client toggle;
+// the inline script is allowed by the CSP's script-src 'unsafe-inline'.
+const themeScript = `(function(){var d=document.documentElement;d.classList.add("js");try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var s=localStorage.getItem(k);var t=(s==="light"||s==="dark")?s:(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");d.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)},t);}catch(e){d.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)},${JSON.stringify(DEFAULT_THEME)});}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

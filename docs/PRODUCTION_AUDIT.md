@@ -80,7 +80,7 @@ per-instance. Do not use this demo with real customer data.
 
 Commands run against this revision: `npm test`, `npm run typecheck`, `npm run lint`.
 
-- Tests: 101 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy and real-data preview (`tests/landing.test.ts`), and the theme tokens (`tests/theme.test.ts`).
+- Tests: 106 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy and customer-neutral capability summary (`tests/landing.test.ts`), the shared priority colour mapping (`tests/priority.test.ts`), and the theme tokens (`tests/theme.test.ts`).
 - Typecheck (`tsc --noEmit`) and lint: clean (lint reports only pre-existing config warnings).
 
 On the previous revision a production build and a local `next start` pass were also run: the build succeeded; `/`, `/privacy`, `/terms`, `/icon.svg`, `/opengraph-image`, `/robots.txt`, `/sitemap.xml` prerendered as static; `/dashboard` was a static shell; the three API routes stayed dynamic; and over HTTP `/`, `/dashboard`, `/privacy`, `/terms` returned `200` (the landing page serving the expected title, description, canonical, and Open Graph URL; `/dashboard` carrying `noindex`; `/api/analyze` returning `400` for an invalid body). Those build and local-server steps were **not** re-run for this revision.

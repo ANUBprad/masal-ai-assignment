@@ -38,17 +38,20 @@ export interface ScoreContext {
 // ---------------------------------------------------------------------------
 export const PRIORITIES: Priority[] = ["Act Now", "Follow Up", "Nurture"];
 export const PRIORITY_THRESHOLDS = { actNow: 80, followUp: 50 } as const;
-// Display-only. A single brand accent is reserved for the top priority; the
-// other labels stay monochrome so priority reads through weight, not a palette.
+// Display-only, and the single source of truth for priority colour. The class
+// names are defined once in app/globals.css against the `--priority-*` theme
+// tokens, so a priority reads the same in labels, filters, indicators, and score
+// summaries, and stays accessible in both themes. `PRIORITY_BAR` is the raw
+// colour for SVG strokes and bar fills; the glow lives only on the text label.
 export const PRIORITY_STYLES: Record<Priority, string> = {
-  "Act Now": "text-[var(--brand-text)]",
-  "Follow Up": "text-[var(--text-soft)]",
-  "Nurture": "text-[var(--text-muted)]"
+  "Act Now": "priority-act",
+  "Follow Up": "priority-follow",
+  "Nurture": "priority-nurture"
 };
 export const PRIORITY_BAR: Record<Priority, string> = {
-  "Act Now": "var(--brand)",
-  "Follow Up": "var(--text-soft)",
-  "Nurture": "var(--text-muted)"
+  "Act Now": "var(--priority-act)",
+  "Follow Up": "var(--priority-follow)",
+  "Nurture": "var(--priority-nurture)"
 };
 export const PRIORITY_NOTE =
   "Sales priority is a provisional, rule-based estimate of who to work first — not a qualification status or a probability of closing.";

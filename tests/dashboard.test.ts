@@ -130,6 +130,24 @@ test("only genuine leads are persisted; demos are re-derived and removable", () 
   assert.ok(source.includes("leads.filter((lead) => !isDemoLead(lead))"), "persistence must write genuine leads only");
   assert.ok(source.includes("removeDemoLeads("), "demos must be removable");
   assert.ok(source.includes("DEMOS_DISMISSED_KEY"), "removal must stick via the dismissed marker");
-  assert.ok(source.includes("leadDisplayName("), "rows must render the (Dummy) label for demos");
-  assert.ok(source.includes("isDemoLead(lead)"), "demo rows must be identifiable in the list");
+  assert.ok(source.includes("leadDisplayName("), "the full labelled name must stay available for aria-labels and copilot copy");
+  assert.ok(source.includes("<DemoSuffix"), "demo rows must show the (Dummy) suffix");
+});
+
+// --- Priority colours and the demo marker are shared, presentational concerns ---
+
+test("priority colours come from the shared mapping, not hard-coded values", () => {
+  const source = dashboardSource();
+  assert.ok(source.includes("PRIORITY_STYLES[lead.priority]"), "sidebar priority labels must use the shared style");
+  assert.ok(source.includes("PRIORITY_STYLES[selected.priority]"), "the detail priority label must use the shared style");
+  assert.ok(source.includes("background: PRIORITY_BAR[item]"), "priority filters must use the shared colour");
+  assert.ok(source.includes("stroke={PRIORITY_BAR[priority]}"), "the score ring must use the shared colour");
+  assert.ok(source.includes("background: PRIORITY_BAR[lead.priority]"), "the score breakdown must use the shared colour");
+});
+
+test("the (Dummy) marker is a separate, lighter element beside the name", () => {
+  const source = dashboardSource();
+  assert.ok(source.includes("function DemoSuffix("), "the demo marker must be its own element");
+  assert.ok(source.includes("font-normal text-[var(--text-muted)]"), "the marker must be regular-weight and muted");
+  assert.ok(source.includes("{lead.name}") && source.includes("{selected.name}"), "the name must render on its own, without the suffix baked in");
 });

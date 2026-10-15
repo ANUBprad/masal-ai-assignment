@@ -2,8 +2,7 @@
 // imports so the Node test runner can assert the public route wiring and the
 // workflow copy without a browser or a React test setup — the only way to test
 // the root route with the repository's framework-free `node --test` harness.
-import { buildDemoLeads, leadDisplayName } from "./demos.ts";
-import type { Priority } from "../types/lead.ts";
+import { scoreLead } from "./scoring.ts";
 
 export const DASHBOARD_PATH = "/dashboard";
 export const WORKFLOW_ANCHOR = "how-it-works";
@@ -15,54 +14,29 @@ export const HERO = {
 
 export const WORKFLOW_STEPS = [
   {
-    title: "Capture requirements",
-    body: "Record the buyer's location, property need, budget, timeline, and enquiry in one place."
+    title: "Capture the enquiry",
+    body: "Collect the buyer's property requirements, budget, and timeline."
   },
   {
-    title: "Understand readiness and missing info",
-    body: "See the deterministic score, the signals behind it, and the questions that are still open."
+    title: "Understand readiness",
+    body: "See the deterministic sales priority, score evidence, and the qualification details that are missing."
   },
   {
-    title: "Take the next sales action",
-    body: "Prepare the conversation with AI analysis, a Call Brief, and Sales Copilot."
+    title: "Take the next action",
+    body: "Prepare a useful follow-up, a call brief, or a contextual sales conversation."
   }
 ] as const;
 
 export interface PreviewDimension {
   label: string;
-  earned: number;
   max: number;
 }
 
-// A read-only view of the product for the landing page. It is built from the
-// real demo scenario and the same deterministic engine the workspace uses, so
-// the preview cannot claim a score, priority, or breakdown the app would not
-// show. `nextAction` mirrors the workspace's pre-analysis guidance: the first
-// gap the salesperson should confirm.
-export interface LandingPreview {
-  name: string;
-  priority: Priority;
-  score: number;
-  location: string;
-  property: string;
-  budget: string;
-  timeline: string;
-  dimensions: PreviewDimension[];
-  nextAction: string;
-}
-
-export function landingPreview(): LandingPreview {
-  const [demo] = buildDemoLeads();
-  const missing = demo.scoreDetail?.missing[0];
-  return {
-    name: leadDisplayName(demo),
-    priority: demo.priority,
-    score: demo.score,
-    location: demo.location,
-    property: demo.propertyRequirement,
-    budget: demo.budget,
-    timeline: demo.timeline,
-    dimensions: (demo.scoreDetail?.dimensions ?? []).map((dim) => ({ label: dim.label, earned: dim.earned, max: dim.max })),
-    nextAction: missing ? `Confirm first: ${missing.toLowerCase()}` : "Run the analysis to get a recommended next action."
-  };
+// The five scoring dimensions the landing page shows as a capability list. They
+// come from the real engine (empty input), so the labels and weights can never
+// drift from what the dashboard actually scores. No customer data is involved.
+export function previewDimensions(): PreviewDimension[] {
+  return scoreLead({ name: "", location: "", propertyRequirement: "", budget: "", timeline: "Just exploring / no rush", message: "" })
+    .dimensions
+    .map((dim) => ({ label: dim.label, max: dim.max }));
 }

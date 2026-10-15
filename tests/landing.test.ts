@@ -2,9 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { DASHBOARD_PATH, HERO, WORKFLOW_ANCHOR, WORKFLOW_STEPS, landingPreview } from "../lib/landing.ts";
-import { priorityForScore, scoreLead } from "../lib/scoring.ts";
-import { buildDemoLeads } from "../lib/demos.ts";
+import { DASHBOARD_PATH, HERO, WORKFLOW_ANCHOR, WORKFLOW_STEPS, previewDimensions } from "../lib/landing.ts";
+import { scoreLead } from "../lib/scoring.ts";
 
 // The test harness is the repository's framework-free `node --test` runner: it
 // strips types but not JSX, and there is no DOM. So the root route is verified
@@ -31,24 +30,20 @@ test("the workflow section lists the three shipped steps", () => {
   assert.equal(WORKFLOW_STEPS.length, 3);
   assert.deepEqual(
     WORKFLOW_STEPS.map((step) => step.title),
-    ["Capture requirements", "Understand readiness and missing info", "Take the next sales action"]
+    ["Capture the enquiry", "Understand readiness", "Take the next action"]
   );
   for (const step of WORKFLOW_STEPS) assert.ok(step.body.length > 0);
 });
 
-// The product preview must be real: the same demo lead and the same scoring
-// engine the workspace uses, so it can never show a score the app disagrees with.
-test("the landing preview is built from the real demo lead and scoring engine", () => {
-  const preview = landingPreview();
-  const [demo] = buildDemoLeads();
-  const rescored = scoreLead(demo, { status: "New" });
-  assert.equal(preview.score, rescored.score, "preview score must match the engine");
-  assert.equal(preview.priority, rescored.priority, "preview priority must match the engine");
-  assert.equal(preview.priority, priorityForScore(preview.score), "preview priority must follow the thresholds");
-  assert.ok(preview.name.endsWith("(Dummy)"), "the preview must be clearly labelled as a demo");
-  assert.equal(preview.dimensions.length, 5);
-  assert.equal(preview.dimensions.reduce((sum, dim) => sum + dim.max, 0), 100);
-  assert.ok(preview.nextAction.length > 0, "the preview must show a recommended next action");
+// The landing capability summary must be real: the five dimensions come from the
+// same deterministic engine the workspace uses, so the page can never show a
+// breakdown the app would not.
+test("the landing capability summary comes from the real scoring engine and sums to 100", () => {
+  const dimensions = previewDimensions();
+  assert.equal(dimensions.length, 5);
+  assert.equal(dimensions.reduce((sum, dim) => sum + dim.max, 0), 100);
+  const engine = scoreLead({ name: "", location: "", propertyRequirement: "", budget: "", timeline: "Just exploring / no rush", message: "" });
+  assert.deepEqual(dimensions, engine.dimensions.map((dim) => ({ label: dim.label, max: dim.max })));
 });
 
 test("the root route renders the landing page, not the client dashboard", () => {
@@ -56,9 +51,18 @@ test("the root route renders the landing page, not the client dashboard", () => 
   assert.ok(!page.includes('"use client"'), "root page must stay a static server component");
   assert.ok(page.includes("DASHBOARD_PATH"), "root page must link to the dashboard route");
   assert.ok(page.includes("HERO.title"), "root page must render the hero headline");
-  assert.ok(page.includes("landingPreview"), "root page must render the real product preview");
+  assert.ok(page.includes("previewDimensions"), "root page must render the real capability summary");
+  assert.ok(page.includes("ScrollReveal"), "the how-it-works cards must be revealed on scroll");
+  assert.ok(page.includes("PRIORITY_STYLES") && page.includes("PRIORITY_BAR"), "priority labels must reuse the shared mapping");
+  assert.ok(page.includes('aria-label="Masal AI"'), "the closing masal.ai wordmark must be present");
   assert.ok(page.includes("/privacy") && page.includes("/terms"), "footer legal links must be present");
-  assert.ok(!page.includes("next/image") && !page.includes("<img"), "the preview must use real components, not a fake screenshot");
+  assert.ok(!page.includes("next/image") && !page.includes("<img"), "the summary must use real components, not a fake screenshot");
+});
+
+test("the landing page shows no customer data or invented testimonials", () => {
+  const page = read("../app/page.tsx");
+  for (const name of ["Rahul", "Priya", "Arjun", "(Dummy)"]) assert.ok(!page.includes(name), `the landing page must not name a customer (${name})`);
+  for (const word of ["testimonial", "trusted by", "4.9", "★★★★★"]) assert.ok(!page.toLowerCase().includes(word), `the landing page must not invent proof (${word})`);
 });
 
 test("the dashboard lives at /dashboard and stays the client workspace", () => {

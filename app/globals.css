@@ -32,6 +32,15 @@
   --danger-bg: rgba(248, 113, 113, .10);
   --overlay-bg: rgba(0, 0, 0, .72);
   --focus-ring: rgba(143, 191, 159, .30);
+  /* Sales-priority colours (single source of truth for labels, filters,
+     indicators, and score summaries). Glow values are the same hue at low
+     alpha, kept restrained and local to the indicator. */
+  --priority-act: #f06464;
+  --priority-follow: #e8bc55;
+  --priority-nurture: #78b88b;
+  --priority-act-glow: rgba(240, 100, 100, .45);
+  --priority-follow-glow: rgba(232, 188, 85, .40);
+  --priority-nurture-glow: rgba(120, 184, 139, .40);
   --shadow-panel: none;
   --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, .85), 0 2px 10px rgba(0, 0, 0, .5);
 }
@@ -62,6 +71,13 @@
   --danger-bg: rgba(180, 35, 24, .08);
   --overlay-bg: rgba(37, 40, 34, .45);
   --focus-ring: rgba(53, 107, 75, .28);
+  /* Darker priority hues for accessible contrast on the warm light surfaces. */
+  --priority-act: #b73636;
+  --priority-follow: #82620f;
+  --priority-nurture: #2f7a4a;
+  --priority-act-glow: rgba(183, 54, 54, .30);
+  --priority-follow-glow: rgba(130, 98, 15, .28);
+  --priority-nurture-glow: rgba(47, 122, 74, .28);
   --shadow-panel: none;
   --shadow-pop: 0 18px 44px -22px rgba(37, 40, 34, .35), 0 2px 10px rgba(37, 40, 34, .10);
 }
@@ -112,6 +128,19 @@
     font-weight: 600;
     color: var(--text-soft);
   }
+  /* One priority treatment for every surface that names a sales priority: the
+     colour plus a restrained, local glow (text-shadow). Colour is inherited from
+     the theme tokens above, so a label never carries a hard-coded colour. */
+  .priority-act { color: var(--priority-act); text-shadow: 0 0 12px var(--priority-act-glow); }
+  .priority-follow { color: var(--priority-follow); text-shadow: 0 0 12px var(--priority-follow-glow); }
+  .priority-nurture { color: var(--priority-nurture); text-shadow: 0 0 12px var(--priority-nurture-glow); }
+  /* Scroll reveal for the "how it works" cards. The server renders the cards
+     visible; the pre-paint script adds `.js`, and only then does a `pending`
+     card start hidden and above its resting place. Without JavaScript (or if
+     the observer never runs) the content is never hidden. */
+  .js [data-reveal="pending"] { opacity: 0; transform: translateY(-18px); }
+  [data-reveal="shown"] { opacity: 1; transform: translateY(0); }
+  .js [data-reveal="shown"] { transition: opacity .55s ease, transform .55s cubic-bezier(.22, .61, .36, 1); transition-delay: var(--reveal-delay, 0ms); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -121,4 +150,6 @@
     transition-duration: .001ms !important;
     scroll-behavior: auto !important;
   }
+  /* Never hold revealed content off-screen for a motion-preference user. */
+  .js [data-reveal="pending"] { opacity: 1; transform: none; }
 }

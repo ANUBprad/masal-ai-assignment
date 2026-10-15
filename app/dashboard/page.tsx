@@ -226,7 +226,11 @@ export default function HomePage() {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1" role="group" aria-label="Filter leads by priority">
               {(["All", ...PRIORITIES] as const).map((item) => {
                 const active = priorityFilter === item;
-                return <button key={item} onClick={() => setPriorityFilter(item)} aria-pressed={active} className={`text-xs font-semibold transition ${active ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text-soft)]"}`}>{item}</button>;
+                const tint = item === "All" ? undefined : PRIORITY_STYLES[item];
+                return <button key={item} onClick={() => setPriorityFilter(item)} aria-pressed={active} className={`inline-flex items-center gap-1.5 text-xs font-semibold transition ${active ? tint ?? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text-soft)]"}`}>
+                  {item !== "All" && <span className="h-1.5 w-1.5 rounded-full" style={{ background: PRIORITY_BAR[item] }} aria-hidden="true" />}
+                  {item}
+                </button>;
               })}
             </div>
           </div>}
@@ -272,7 +276,10 @@ export default function HomePage() {
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="truncate text-lg font-bold tracking-tight">{leadDisplayName(selected)}</h2>
+                          <h2 className="flex min-w-0 items-baseline gap-1.5 text-lg font-bold tracking-tight">
+                            <span className="truncate">{selected.name}</span>
+                            <DemoSuffix lead={selected} />
+                          </h2>
                           {isDemoLead(selected) && <span className="shrink-0 rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sample scenario</span>}
                         </div>
                         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--text-muted)]">
@@ -352,7 +359,10 @@ function LeadSection({ title, leads, selectedId, onSelect }: { title: string; le
           return (
             <button key={lead.id} onClick={() => onSelect(lead.id)} aria-pressed={active} className={`flex w-full flex-col gap-1 border-l-2 px-3.5 py-2.5 text-left transition ${active ? "border-l-[var(--brand)] bg-[var(--hover)]" : "border-l-transparent hover:bg-[var(--hover)]"}`}>
               <div className="flex items-baseline justify-between gap-3">
-                <span className={`truncate text-sm font-semibold ${demo ? "text-[var(--text-soft)]" : ""}`}>{leadDisplayName(lead)}</span>
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  <span className={`truncate text-sm font-semibold ${demo ? "text-[var(--text-soft)]" : ""}`}>{lead.name}</span>
+                  <DemoSuffix lead={lead} />
+                </span>
                 <span className="shrink-0 text-xs font-semibold tabular-nums text-[var(--text-soft)]">{lead.score}</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
@@ -386,6 +396,16 @@ function WelcomeState({ hasDemos, onAdd, onRestore }: { hasDemos: boolean; onAdd
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0"><dt className="eyebrow">{label}</dt><dd className="mt-1 text-sm leading-6 text-[var(--text-soft)]">{value}</dd></div>;
+}
+
+// The `(Dummy)` marker is presentational, so it is rendered as a separate,
+// lighter element instead of being baked into the name: the name keeps its
+// normal weight and the suffix stays small and muted right after it. The
+// combined string still comes from `leadDisplayName` for aria-labels and the
+// copilot copy, where a single readable name is wanted.
+function DemoSuffix({ lead }: { lead: Lead }) {
+  if (!isDemoLead(lead)) return null;
+  return <span className="shrink-0 text-[11px] font-normal text-[var(--text-muted)]">(Dummy)</span>;
 }
 
 function ScoreRing({ score, priority }: { score: number; priority: Priority }) {
