@@ -127,3 +127,30 @@ test("lead context carries the selected lead's exact name", () => {
   });
   assert.match(context, /^Name: Rohan Sharma \(Dummy\)$/m);
 });
+
+
+test("grounding guard detects unsupported price and discount claims", () => {
+  assert.deepEqual(detectUnsupportedClaims("The price is ₹1.2 crore."), ["price"]);
+  assert.deepEqual(detectUnsupportedClaims("We offer a 10% discount."), ["discount"]);
+  assert.deepEqual(detectUnsupportedClaims("We have suitable properties near JP Nagar."), ["availability"]);
+  assert.deepEqual(detectUnsupportedClaims("I will check current inventory and confirm pricing."), []);
+});
+
+test("Sales Copilot fails safe instead of retaining unsupported factual claims", () => {
+  const answer = guardChatAnswer("We have apartments available now and can offer a 10% discount.");
+  assert.match(answer, /can't verify current property availability, pricing, discounts/i);
+  assert.doesNotMatch(answer, /10% discount|available now/i);
+});
+
+test("Call Brief replaces unsupported claim fields with safe guidance", () => {
+  const brief = guardCallBrief({
+    objective: "Sell the available apartment for ₹1.2 crore.",
+    openingLine: "Hello, this is Anubhab Pradhan from masal.ai.",
+    talkingPoints: ["We have apartments available now."],
+    questions: ["What is your budget?"],
+    watchOutFor: ["Do not promise a visit."]
+  });
+  assert.match(brief.objective, /check current inventory/i);
+  assert.match(brief.talkingPoints[0] ?? "", /confirm current inventory/i);
+  assert.match(brief.openingLine, /Anubhab Pradhan from masal.ai/);
+});
