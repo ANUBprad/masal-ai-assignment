@@ -239,7 +239,7 @@ The repository history is committed under the project owner's name and does not 
 
 ### Runtime AI (used by the application)
 
-The only AI used when the app runs is an external text provider — **Groq by default**, with optional **Google Gemini** failover (`lib/providers.ts`). It powers three actions: lead analysis (`/api/analyze`), the contextual Sales Copilot (`/api/chat`), and the Call Brief (`/api/call-brief`). Output is draft material for a salesperson to review; it is validated for shape and checked for unsupported claims before display.
+The only AI used when the app runs is an external text provider — **Groq by default**, with optional **Google Gemini** failover (`lib/providers.ts`). It powers three actions: lead analysis (`/api/analyze`), the contextual Sales Copilot (`/api/chat`), and the Call Brief (`/api/call-brief`). Output is draft material for a salesperson to review; generated Call Brief fields are bounded and common unsupported availability, price, discount, and booking claims are checked before display. Pattern-based safeguards can miss novel wording.
 
 ### Deterministic logic (not AI)
 
@@ -252,7 +252,7 @@ The **lead score and priority** are computed by a fixed, rule-based engine (`lib
 - **Rate limiter.** AI routes are limited per client IP (a sliding window: 20 requests / 10 minutes). The limiter is **in-memory and per server instance**, resets on cold start, and is not shared across instances — it blunts casual abuse, it is not a global cap. It keys off the client IP from `x-forwarded-for`, which is trustworthy behind Vercel's edge but spoofable behind other proxies.
 - **Absent controls.** There is **no authentication, authorization, multi-user tenancy, server-side database, audit logging, or CSRF-specific handling**. Anything the UI does not enforce could be invoked directly against the AI routes (subject only to the rate limit). Do not use this demo with real customer data without adding appropriate controls.
 - **Human review of AI output.** The analysis, suggested reply, and call brief are probabilistic drafts that can be incomplete or wrong; a salesperson must review them before use. They are not commitments.
-- **No unsupported claims.** The prompts instruct the model not to assert property availability, prices, discounts, or a booked/confirmed visit unless the context states it, and a deterministic guard resolves identity placeholders and softens any such claim the model still produces. The app has no verified property inventory.
+- **No unsupported claims.** The prompts instruct the model not to assert property availability, prices, discounts, or a booked/confirmed visit unless the context states it, and deterministic post-processing checks for common unsupported availability, pricing, discount, and booking claims. Known claim patterns trigger safe fallback guidance; these checks are not a guarantee against every possible hallucination. The app has no verified property inventory.
 - **Input validation and prompt-injection guard.** Request bodies are parsed and shape-checked, field lengths and the timeline allow-list are enforced, and lead text is treated as untrusted data — every system prompt states that it is data, never instructions.
 
 ## Design decisions and future improvements
