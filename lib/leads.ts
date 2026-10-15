@@ -90,9 +90,9 @@ export function pipelineStats(leads: Lead[]): PipelineStats {
 }
 
 // Resolves the current selection, falling back to the first lead. Returns
-// `undefined` for an empty workspace so callers render the empty state instead
-// of a detail panel for a lead that does not exist.
-export function resolveSelectedLead(leads: Lead[], selectedId: string | null): Lead | undefined {
-  const found = leads.find((lead) => lead.id === selectedId) ?? leads[0];
-  return found;
+// `null` for an empty workspace so callers render the empty state instead of a
+// detail panel for a lead that does not exist — and never a fixture or default
+// customer.
+export function resolveSelectedLead(leads: Lead[], selectedId: string | null): Lead | null {
+  return leads.find((lead) => lead.id === selectedId) ?? leads[0] ?? null;
 }

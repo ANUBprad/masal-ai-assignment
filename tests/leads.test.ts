@@ -113,6 +113,19 @@ test("versioned load flags a legacy store for migration exactly once", () => {
   assert.equal(second.migrated, false);
 });
 
+// 6b. A store already stamped at the current version can never preserve a seed:
+//     the cleanup is not gated on the version, so seeds are dropped on every
+//     load and the stale records cannot survive a skipped migration.
+test("an already-stamped store still drops seeded records", () => {
+  const store: Record<string, string> = {
+    [LEADS_STORAGE_KEY]: JSON.stringify([flaglessSeed, flaggedSeed, makeLead({ id: "lead-1" })]),
+    [LEADS_VERSION_KEY]: String(LEADS_VERSION)
+  };
+  const result = loadStoredLeads(readFrom(store));
+  assert.equal(result.migrated, false);
+  assert.deepEqual(result.leads.map((lead) => lead.id), ["lead-1"]);
+});
+
 // 7. Empty-state stats and priority counts are zero; populated counts correct.
 test("empty workspace statistics and priority counts are zero", () => {
   const empty = pipelineStats([]);
@@ -134,8 +147,8 @@ test("empty workspace statistics and priority counts are zero", () => {
 
 // 8. An empty workspace never resolves a selected lead (no detail panel crash).
 test("an empty workspace resolves no selected lead", () => {
-  assert.equal(resolveSelectedLead([], null), undefined);
-  assert.equal(resolveSelectedLead([], "demo-1"), undefined);
+  assert.equal(resolveSelectedLead([], null), null);
+  assert.equal(resolveSelectedLead([], "demo-1"), null);
 });
 
 test("selection falls back to the first lead and ignores a stale id", () => {
@@ -191,7 +204,7 @@ test("an empty workspace stays empty after reload", () => {
     const { leads: loaded } = loadStoredLeads(readFrom(store));
     assert.deepEqual(loaded, []);
     assert.equal(pipelineStats(loaded).total, 0);
-    assert.equal(resolveSelectedLead(loaded, null), undefined);
+    assert.equal(resolveSelectedLead(loaded, null), null);
     store[LEADS_STORAGE_KEY] = JSON.stringify(loaded);
   }
 });
