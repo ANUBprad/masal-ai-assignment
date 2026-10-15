@@ -67,7 +67,7 @@ environment inside Route Handlers and attached only to the outbound provider req
 
 - Semantic landmarks (`main`, `header`, `footer`, `nav`, `h1`/`h2`/`h3`), a visible-content skip link on every page, labelled controls, and accessible link text.
 - Focus styles are defined globally (`:focus-visible`), so keyboard navigation is visible.
-- Layouts are responsive (stacked on mobile, row on desktop) and use the two centralized theme token sets (dark and light), which meet contrast for body and button text.
+- Layouts are responsive (stacked on mobile, row on desktop) and use the two centralized theme token sets (light — the default — and dark), which meet contrast for body and button text.
 - `prefers-reduced-motion` is honoured (`app/globals.css`): when the user asks for reduced motion the landing scroll reveal is disabled and its cards render in place (the reveal is also inert without JavaScript).
 
 ## 6. Known limitations (not implemented)
@@ -80,7 +80,7 @@ per-instance. Do not use this demo with real customer data.
 
 Commands run against this revision: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
 
-- Tests: 107 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy and the scoring factors/priority bands derived from the engine (`tests/landing.test.ts`), the shared priority colour mapping (`tests/priority.test.ts`), and the theme tokens (`tests/theme.test.ts`).
+- Tests: 111 passing, including the workspace lifecycle (`tests/leads.test.ts`), the demo scenarios (`tests/demos.test.ts`), the landing copy, the hero workflow, and the scoring factors/priority bands derived from the engine (`tests/landing.test.ts`), the shared priority colour mapping (`tests/priority.test.ts`), the theme default and tokens (`tests/theme.test.ts`), and the call-brief identity/placeholder handling (`tests/prompts.test.ts`, `tests/providers.test.ts`).
 - Typecheck (`tsc --noEmit`) and lint: clean (lint reports only pre-existing config warnings).
 - Production build (`next build`): succeeded; `/`, `/privacy`, `/terms`, `/icon.svg`, `/opengraph-image`, `/robots.txt`, `/sitemap.xml`, and the `/dashboard` shell prerendered as static; the three API routes stayed dynamic.
 

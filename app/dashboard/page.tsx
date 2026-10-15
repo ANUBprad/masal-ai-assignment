@@ -536,19 +536,39 @@ function AnalysisTab({ lead, busy, onAnalyze, onCopy, onAsk }: { lead: Lead; bus
 
 function BriefTab({ lead, busy, onBrief, onCopy }: { lead: Lead; busy: string; onBrief: () => void; onCopy: (text: string) => void }) {
   const brief = lead.callBrief;
+  if (!brief) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2.5"><PhoneCall size={16} className="text-[var(--brand-text)]" aria-hidden="true" /><div><h3 className="text-sm font-bold">Call brief</h3><p className="text-xs text-[var(--text-muted)]">A quick prep sheet grounded in this lead.</p></div></div>
+        <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-5"><p className="text-sm leading-6 text-[var(--text-muted)]">Generate an objective, an opening line, talking points, and questions to run a sharper sales call.</p><button disabled={!!busy} onClick={onBrief} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-3.5 py-2 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)] disabled:opacity-60">{busy === "brief" ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <PhoneCall size={14} aria-hidden="true" />}{busy === "brief" ? "Preparing…" : "Generate call brief"}</button></div>
+      </div>
+    );
+  }
+  const copyAll = [brief.objective, brief.openingLine, ...brief.talkingPoints, ...brief.questions, ...brief.watchOutFor].join("\n");
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5"><PhoneCall size={16} className="text-[var(--brand-text)]" aria-hidden="true" /><div><h3 className="text-sm font-bold">Call brief</h3><p className="text-xs text-[var(--text-muted)]">A quick prep sheet grounded in this lead.</p></div></div>
-        {brief && <button onClick={() => onCopy([brief.objective, brief.openingLine, ...brief.talkingPoints].join("\n"))} aria-label="Copy call brief" title="Copy call brief" className="text-[var(--text-muted)] transition hover:text-[var(--brand-text)]"><Copy size={14} aria-hidden="true" /></button>}
+        <button onClick={() => onCopy(copyAll)} aria-label="Copy call brief" title="Copy the full brief" className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[var(--brand-text)] transition hover:bg-[var(--hover)]"><Copy size={13} aria-hidden="true" /> Copy all</button>
       </div>
-      {!brief ? <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-[var(--border-input)] bg-[var(--surface)] p-5"><p className="text-sm leading-6 text-[var(--text-muted)]">Generate an objective, opening line, talking points, and questions to run a sharper sales call.</p><button disabled={!!busy} onClick={onBrief} className="inline-flex items-center gap-2 rounded-md border border-[var(--border-input)] bg-[var(--surface)] px-3.5 py-2 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-[var(--hover)] disabled:opacity-60">{busy === "brief" ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <PhoneCall size={14} aria-hidden="true" />}{busy === "brief" ? "Preparing…" : "Generate call brief"}</button></div>
-        : <div>
-          <RichText className="text-sm leading-6 text-[var(--text-soft)]" text={brief.objective} />
-          <h4 className="eyebrow mt-4">Opening line</h4>
-          <RichText className="mt-1.5 border-l-2 border-[var(--brand)] pl-3 text-sm leading-6 text-[var(--text-soft)]" text={brief.openingLine} />
-          <div className="mt-4 grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-3"><BulletSection title="Talking points" items={brief.talkingPoints} /><BulletSection title="Questions" items={brief.questions} /><BulletSection title="Watch out for" items={brief.watchOutFor} /></div>
-        </div>}
+
+      <RichText className="text-sm leading-6 text-[var(--text-soft)]" text={brief.objective} />
+
+      <div className="rounded-md border-l-2 border-[var(--brand)] bg-[var(--accent-soft)] p-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="eyebrow text-[var(--brand-text)]">Opening line</h4>
+          <button onClick={() => onCopy(brief.openingLine)} aria-label="Copy opening line" title="Copy opening line" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--brand-text)] transition hover:text-[var(--text)]"><Copy size={12} aria-hidden="true" /> Copy</button>
+        </div>
+        <RichText className="mt-1.5 text-sm leading-6 text-[var(--text-soft)]" text={brief.openingLine} />
+      </div>
+
+      <div className="grid gap-5 border-t border-[var(--border-soft)] pt-4 sm:grid-cols-3">
+        <BulletSection title="Talking points" items={brief.talkingPoints} />
+        <BulletSection title="Questions to qualify" items={brief.questions} />
+        <BulletSection title="Watch out for" items={brief.watchOutFor} />
+      </div>
+
+      <p className="text-[11px] leading-5 text-[var(--text-faint)]">Draft only — confirm availability and any visit details with the buyer before committing.</p>
     </div>
   );
 }

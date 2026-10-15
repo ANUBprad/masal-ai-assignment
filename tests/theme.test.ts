@@ -10,16 +10,16 @@ const read = (relative: string) => readFileSync(fileURLToPath(new URL(relative, 
 
 // --- Pure preference logic (no DOM) ---
 
-test("a stored preference wins over the OS setting", () => {
-  assert.equal(resolveInitialTheme("light", false), "light");
-  assert.equal(resolveInitialTheme("dark", true), "dark");
+test("a stored preference is always honoured", () => {
+  assert.equal(resolveInitialTheme("light"), "light");
+  assert.equal(resolveInitialTheme("dark"), "dark");
 });
 
-test("an absent or invalid preference falls back to the OS setting", () => {
-  assert.equal(resolveInitialTheme(null, true), "light");
-  assert.equal(resolveInitialTheme(undefined, false), "dark");
-  assert.equal(resolveInitialTheme("bogus", true), "light");
-  assert.equal(DEFAULT_THEME, "dark");
+test("an absent or invalid preference falls back to the light default", () => {
+  assert.equal(resolveInitialTheme(null), "light");
+  assert.equal(resolveInitialTheme(undefined), "light");
+  assert.equal(resolveInitialTheme("bogus"), "light");
+  assert.equal(DEFAULT_THEME, "light");
 });
 
 test("normalizeTheme accepts only the two supported values", () => {
@@ -44,13 +44,17 @@ test("the theme key is independent of the leads store", () => {
 
 // --- Wiring (static; JSX and CSS are not importable in this harness) ---
 
-test("both theme token sets are defined in one stylesheet", () => {
+test("both theme token sets are defined in one stylesheet, light as the default", () => {
   const css = read("../app/globals.css");
-  assert.ok(css.includes(':root[data-theme="light"]'), "the light selector must exist");
+  assert.ok(css.includes(':root[data-theme="dark"]'), "the dark selector must exist");
   assert.ok(css.includes("--bg: #000000"), "dark background token");
   assert.ok(css.includes("--bg: #f3f3ee"), "light background token");
   assert.ok(css.includes("--brand: #8fbf9f"), "dark muted-green accent");
   assert.ok(css.includes("--brand: #356b4b"), "light muted-green accent");
+  // The default `:root` (before any data-theme attribute) must be the light set,
+  // so the server-rendered first paint is light and never flashes dark.
+  const base = css.slice(css.indexOf(":root {"), css.indexOf(':root[data-theme="dark"]'));
+  assert.ok(base.includes("color-scheme: light") && base.includes("--bg: #f3f3ee"), "the base token set must be light");
 });
 
 test("the layout applies the stored theme before paint", () => {

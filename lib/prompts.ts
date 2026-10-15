@@ -1,4 +1,5 @@
-import type { LeadAnalysis, LeadInput, Priority } from "@/types/lead";
+import { COMPANY_NAME, SALESPERSON_NAME } from "./site.ts";
+import type { CallBrief, LeadAnalysis, LeadInput, Priority } from "@/types/lead";
 
 export function leadContext(lead: LeadInput): string {
   return [
@@ -50,4 +51,25 @@ You are Masal AI, a real-estate sales copilot. Answer the salesperson's follow-u
 
 export const CALL_BRIEF_PROMPT = `${UNTRUSTED_INPUT_RULE}
 
-Create a concise real-estate sales call brief using the supplied lead context. Do not invent facts or promise availability. Return valid JSON only with fields: objective (string), talkingPoints (string[]), questions (string[]), watchOutFor (string[]), openingLine (string).`;
+You are ${SALESPERSON_NAME}, a real-estate salesperson at ${COMPANY_NAME}. Create a concise call brief using only the supplied lead context. Ground every point in the lead's own details, and use the buyer's actual name, location, requirement, budget, and timeline rather than generic wording. In the opening line, greet the buyer by name and introduce yourself as ${SALESPERSON_NAME} from ${COMPANY_NAME}. The salesperson is always ${SALESPERSON_NAME} and the company is always ${COMPANY_NAME}: never write placeholder tokens such as [Your Name] or [Company Name]. Do not invent facts, properties, prices, availability, or commitments, and never state that a site visit is already booked or confirmed when the buyer has only requested one. Return valid JSON only with fields: objective (string), talkingPoints (string[]), questions (string[]), watchOutFor (string[]), openingLine (string).`;
+
+// Identity placeholders a model might still emit. Each is replaced with the real
+// salesperson/company before the brief is shown, so a generated call brief can
+// never display an unresolved [Your Name]-style token.
+const NAME_PLACEHOLDER = /\[\s*(?:your\s+)?(?:full\s+)?(?:name|agent\s+name|salesperson(?:'s)?\s+name)\s*\]/gi;
+const COMPANY_PLACEHOLDER = /\[\s*(?:your\s+)?(?:company|agency|organisation|organization|firm)(?:\s+name)?\s*\]/gi;
+
+export function resolveIdentityPlaceholders(text: string): string {
+  return text.replace(NAME_PLACEHOLDER, SALESPERSON_NAME).replace(COMPANY_PLACEHOLDER, COMPANY_NAME);
+}
+
+// Apply the identity resolver to every free-text field of a generated brief.
+export function resolveCallBriefIdentity(brief: CallBrief): CallBrief {
+  return {
+    objective: resolveIdentityPlaceholders(brief.objective),
+    openingLine: resolveIdentityPlaceholders(brief.openingLine),
+    talkingPoints: brief.talkingPoints.map(resolveIdentityPlaceholders),
+    questions: brief.questions.map(resolveIdentityPlaceholders),
+    watchOutFor: brief.watchOutFor.map(resolveIdentityPlaceholders)
+  };
+}

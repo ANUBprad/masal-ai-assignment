@@ -3,49 +3,12 @@
 @tailwind utilities;
 
 /* Two theme token sets share one visual system: restrained, flat surfaces, one
-   muted-green accent, no gradients or glow. Dark is the default (`:root`); the
-   light set is applied by `[data-theme="light"]`, which the pre-paint script in
-   app/layout.tsx sets from the stored preference or the OS setting. */
+   muted-green accent, no gradients or glow. Light is the default (`:root`), so
+   the server-rendered HTML paints light before the pre-paint script in
+   app/layout.tsx runs; the dark set is applied by `[data-theme="dark"]`. Both
+   themes avoid glaring pure white/black: warm-neutral light surfaces with
+   near-black text, and black/near-black dark surfaces with off-white text. */
 :root {
-  color-scheme: dark;
-  --bg: #000000;
-  --surface: #0a0a0a;
-  --surface-2: #111111;
-  --surface-inset: #111111;
-  --accent-soft: rgba(143, 191, 159, .12);
-  --hover: #141414;
-  --text: #f5f5f5;
-  --text-soft: #a3a3a3;
-  --text-muted: #737373;
-  --text-faint: #737373;
-  --border: #262626;
-  --border-soft: #1a1a1a;
-  --border-input: #262626;
-  --border-strong: #404040;
-  --brand: #8fbf9f;
-  --brand-strong: #a6cdb4;
-  --brand-text: #8fbf9f;
-  --on-brand: #06110b;
-  --ink-solid: #262626;
-  --on-ink: #f5f5f5;
-  --danger-fg: #f87171;
-  --danger-bg: rgba(248, 113, 113, .10);
-  --overlay-bg: rgba(0, 0, 0, .72);
-  --focus-ring: rgba(143, 191, 159, .30);
-  /* Sales-priority colours (single source of truth for labels, filters,
-     indicators, and score summaries). Glow values are the same hue at low
-     alpha, kept restrained and local to the indicator. */
-  --priority-act: #f06464;
-  --priority-follow: #e8bc55;
-  --priority-nurture: #78b88b;
-  --priority-act-glow: rgba(240, 100, 100, .45);
-  --priority-follow-glow: rgba(232, 188, 85, .40);
-  --priority-nurture-glow: rgba(120, 184, 139, .40);
-  --shadow-panel: none;
-  --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, .85), 0 2px 10px rgba(0, 0, 0, .5);
-}
-
-:root[data-theme="light"] {
   color-scheme: light;
   --bg: #f3f3ee;
   --surface: #fafaf6;
@@ -71,7 +34,10 @@
   --danger-bg: rgba(180, 35, 24, .08);
   --overlay-bg: rgba(37, 40, 34, .45);
   --focus-ring: rgba(53, 107, 75, .28);
-  /* Darker priority hues for accessible contrast on the warm light surfaces. */
+  /* Sales-priority colours (single source of truth for labels, filters,
+     indicators, and score summaries). Glow values are the same hue at low
+     alpha, kept restrained and local to the indicator. Darker hues here for
+     accessible contrast on the warm light surfaces. */
   --priority-act: #b73636;
   --priority-follow: #82620f;
   --priority-nurture: #2f7a4a;
@@ -80,6 +46,43 @@
   --priority-nurture-glow: rgba(47, 122, 74, .28);
   --shadow-panel: none;
   --shadow-pop: 0 18px 44px -22px rgba(37, 40, 34, .35), 0 2px 10px rgba(37, 40, 34, .10);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #111111;
+  --surface-inset: #111111;
+  --accent-soft: rgba(143, 191, 159, .12);
+  --hover: #141414;
+  --text: #f5f5f5;
+  --text-soft: #a3a3a3;
+  --text-muted: #737373;
+  --text-faint: #737373;
+  --border: #262626;
+  --border-soft: #1a1a1a;
+  --border-input: #262626;
+  --border-strong: #404040;
+  --brand: #8fbf9f;
+  --brand-strong: #a6cdb4;
+  --brand-text: #8fbf9f;
+  --on-brand: #06110b;
+  --ink-solid: #262626;
+  --on-ink: #f5f5f5;
+  --danger-fg: #f87171;
+  --danger-bg: rgba(248, 113, 113, .10);
+  --overlay-bg: rgba(0, 0, 0, .72);
+  --focus-ring: rgba(143, 191, 159, .30);
+  /* Lighter priority hues for the near-black dark surfaces. */
+  --priority-act: #f06464;
+  --priority-follow: #e8bc55;
+  --priority-nurture: #78b88b;
+  --priority-act-glow: rgba(240, 100, 100, .45);
+  --priority-follow-glow: rgba(232, 188, 85, .40);
+  --priority-nurture-glow: rgba(120, 184, 139, .40);
+  --shadow-panel: none;
+  --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, .85), 0 2px 10px rgba(0, 0, 0, .5);
 }
 
 @layer base {

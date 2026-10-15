@@ -30,6 +30,51 @@ const primaryButton =
 const secondaryLink =
   "inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-soft)] transition hover:text-[var(--text)]";
 
+// The brand mark is one component used in the header, the hero, and the footer,
+// so the `masal`/`.ai` treatment and the green accent cannot drift between them.
+function Wordmark({ className = "" }: { className?: string }) {
+  return <span className={`font-extrabold tracking-tight ${className}`.trim()}>masal<span className="text-[var(--brand-text)]">.ai</span></span>;
+}
+
+// A customer-neutral visualization of the real workflow: captured requirements
+// feed the deterministic score, which lands the lead in a sales-priority band,
+// which drives the next action. No customer names, values, or fabricated proof.
+function HeroFlow() {
+  return (
+    <aside aria-label="How Masal AI turns an enquiry into a next action" className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <span className="eyebrow">The workflow</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Deterministic score</span>
+      </div>
+      <ol className="mt-6 space-y-6">
+        <li>
+          <p className="text-sm font-bold tracking-tight"><span className="mr-2 text-xs text-[var(--brand-text)]">01</span>Buyer requirements</p>
+          <p className="mt-1.5 text-xs leading-5 text-[var(--text-soft)]">Location, configuration, budget, and timeline are captured from the enquiry.</p>
+        </li>
+        <li>
+          <p className="text-sm font-bold tracking-tight"><span className="mr-2 text-xs text-[var(--brand-text)]">02</span>Evidence-based sales priority</p>
+          <p className="mt-1.5 text-xs leading-5 text-[var(--text-soft)]">A deterministic 0–100 score places the lead in one band.</p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {PRIORITIES.map((priority) => (
+              <span key={priority} className={`inline-flex items-center gap-1.5 text-xs font-semibold ${PRIORITY_STYLES[priority]}`}>
+                <span className="priority-dot h-1.5 w-1.5 rounded-full" aria-hidden="true" />
+                {priority}
+              </span>
+            ))}
+          </div>
+        </li>
+        <li>
+          <p className="text-sm font-bold tracking-tight"><span className="mr-2 text-xs text-[var(--brand-text)]">03</span>Next best action</p>
+          <p className="mt-1.5 text-xs leading-5 text-[var(--text-soft)]">The workspace prepares the next step — a follow-up, a call brief, or a grounded reply.</p>
+        </li>
+      </ol>
+      <Link href={`#${SCORING_ANCHOR}`} className="mt-6 flex items-center gap-1.5 border-t border-[var(--border-soft)] pt-4 text-xs font-semibold text-[var(--brand-text)] transition hover:text-[var(--text)]">
+        See how the 100-point score works <ArrowRight size={13} aria-hidden="true" />
+      </Link>
+    </aside>
+  );
+}
+
 export default function LandingPage() {
   const factors = scoringFactors();
   return (
@@ -40,7 +85,7 @@ export default function LandingPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <Link href="/" className="flex min-w-0 items-center gap-2" aria-label="Masal AI — home">
             <Home size={18} className="shrink-0 text-[var(--brand)]" aria-hidden="true" />
-            <span className="truncate text-sm font-bold tracking-tight">masal<span className="text-[var(--text-soft)]">.ai</span></span>
+            <Wordmark className="truncate text-sm" />
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -52,19 +97,25 @@ export default function LandingPage() {
       </header>
 
       <div id="main-content">
-        <section className="mx-auto max-w-6xl px-4 pb-16 pt-16 sm:px-6 sm:pb-20 sm:pt-24">
-          <div className="max-w-2xl">
-            <p className="eyebrow">Lead intelligence for property sales</p>
-            <h1 className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">{HERO.title}</h1>
-            <p className="mt-6 max-w-xl text-base leading-7 text-[var(--text-soft)] sm:text-lg">{HERO.body}</p>
-            <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <Link href={DASHBOARD_PATH} className={primaryButton}>
-                Open Dashboard <ArrowRight size={15} aria-hidden="true" />
-              </Link>
-              <Link href={`#${WORKFLOW_ANCHOR}`} className={secondaryLink}>
-                See how it works
-              </Link>
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
+          <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:gap-16">
+            <div className="min-w-0">
+              <p className="eyebrow">Lead intelligence for property sales</p>
+              <h1 className="mt-4 text-[clamp(2.75rem,8vw,4.75rem)] leading-none">
+                <Wordmark />
+              </h1>
+              <p className="mt-6 max-w-xl text-lg font-semibold leading-7 tracking-tight sm:text-xl">{HERO.title}</p>
+              <p className="mt-4 max-w-xl text-base leading-7 text-[var(--text-soft)]">{HERO.body}</p>
+              <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <Link href={DASHBOARD_PATH} className={primaryButton}>
+                  Open Dashboard <ArrowRight size={15} aria-hidden="true" />
+                </Link>
+                <Link href={`#${WORKFLOW_ANCHOR}`} className={secondaryLink}>
+                  See how it works
+                </Link>
+              </div>
             </div>
+            <HeroFlow />
           </div>
         </section>
 
@@ -170,8 +221,11 @@ export default function LandingPage() {
       </div>
 
       <footer className="border-t border-[var(--border)] px-4 py-8 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-          <p>Grounded lead triage for property sales.</p>
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-1.5">
+            <Wordmark className="text-sm text-[var(--text)]" />
+            <p>Grounded lead triage for property sales.</p>
+          </div>
           <nav className="flex items-center gap-5" aria-label="Legal">
             <Link href="/privacy" className="transition hover:text-[var(--text)]">Privacy</Link>
             <Link href="/terms" className="transition hover:text-[var(--text)]">Terms</Link>

@@ -30,8 +30,8 @@ test("the theme defines each priority colour and class, overridden for the light
     assert.ok(css.includes(cls), `missing ${cls}`);
   }
   assert.ok(css.includes("--priority-glow:"), "each label class must publish --priority-glow for its dot indicator");
-  const light = css.slice(css.indexOf(':root[data-theme="light"]'));
+  const dark = css.slice(css.indexOf(':root[data-theme="dark"]'));
   for (const token of ["--priority-act:", "--priority-follow:", "--priority-nurture:"]) {
-    assert.ok(light.includes(token), `the light theme must override ${token}`);
+    assert.ok(dark.includes(token), `the dark theme must override ${token}`);
   }
 });

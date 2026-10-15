@@ -13,6 +13,7 @@ import {
   type ProviderKey
 } from "../lib/providers.ts";
 import type { LeadInput } from "../types/lead.ts";
+import { COMPANY_NAME, SALESPERSON_NAME } from "../lib/site.ts";
 
 const lead: LeadInput = {
   name: "Priya Sharma", location: "Whitefield", propertyRequirement: "3 BHK",
@@ -252,6 +253,30 @@ test("call brief uses the shared provider layer", async () => {
     const brief = await generateCallBrief(plan, lead);
     assert.equal(brief.objective, "O");
     assert.ok(stub.calls.some((call) => call.includes("api.groq.com")));
+  } finally {
+    stub.restore();
+  }
+});
+
+// A model can echo identity placeholders; the provider layer must resolve them
+// so a generated brief always names the real salesperson and company.
+test("call brief resolves identity placeholders to the real salesperson and company", async () => {
+  setEnv({ GROQ_API_KEY: "groq-key" });
+  const plan = providerPlan();
+  const briefJson = JSON.stringify({
+    objective: "Open the call as [Your Name]",
+    talkingPoints: ["Reference [Company Name]'s process"],
+    questions: ["Confirm budget"],
+    watchOutFor: ["Visit only requested, not booked"],
+    openingLine: "Hi Rahul, this is [Your Name] from [Company Name]."
+  });
+  const stub = stubFetch(() => ({ status: 200, ok: true, body: { choices: [{ message: { content: briefJson } }] } }));
+  try {
+    const brief = await generateCallBrief(plan, lead);
+    const text = [brief.objective, brief.openingLine, ...brief.talkingPoints, ...brief.questions, ...brief.watchOutFor].join(" ");
+    assert.ok(text.includes(SALESPERSON_NAME), "the real salesperson name must appear");
+    assert.ok(text.includes(COMPANY_NAME), "the real company must appear");
+    assert.doesNotMatch(text, /\[[^\]]*\]/, "no unresolved placeholder token may remain");
   } finally {
     stub.restore();
   }

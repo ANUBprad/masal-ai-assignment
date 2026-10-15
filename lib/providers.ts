@@ -11,7 +11,7 @@
 //
 // Cooldown state is in-memory and therefore per serverless instance. See
 // docs/ARCHITECTURE.md for the caveats (per-instance, reset on cold start).
-import { ANALYSIS_PROMPT, CALL_BRIEF_PROMPT, CHAT_PROMPT, analysisContext, leadContext } from "./prompts.ts";
+import { ANALYSIS_PROMPT, CALL_BRIEF_PROMPT, CHAT_PROMPT, analysisContext, leadContext, resolveCallBriefIdentity } from "./prompts.ts";
 import type { CallBrief, ChatMessage, LeadAnalysis, LeadInput, Priority } from "@/types/lead";
 
 export type ProviderName = "groq" | "gemini";
@@ -380,7 +380,9 @@ export async function generateCallBrief(plan: ProviderKey[], lead: LeadInput): P
       typeof result.openingLine !== "string") {
     throw new AiFailure(MESSAGES.malformed, "malformed");
   }
-  return result;
+  // Even with the identity written into the prompt, a model can still echo a
+  // [Your Name]-style token; resolve it so the brief never shows a placeholder.
+  return resolveCallBriefIdentity(result);
 }
 
 export function safeAiError(error: unknown): string {

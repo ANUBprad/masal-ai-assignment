@@ -63,15 +63,24 @@ test("the root route renders the landing page, not the client dashboard", () => 
   const page = read("../app/page.tsx");
   assert.ok(!page.includes('"use client"'), "root page must stay a static server component");
   assert.ok(page.includes("DASHBOARD_PATH"), "root page must link to the dashboard route");
-  assert.ok(page.includes("HERO.title"), "root page must render the hero headline");
+  assert.ok(page.includes("HERO.title"), "root page must render the hero value proposition");
   assert.ok(page.includes("scoringFactors"), "root page must render the real scoring factors");
   assert.ok(page.includes(`id={SCORING_ANCHOR}`), "the scoring explanation must be its own section");
   assert.ok(page.includes("ScrollReveal"), "the how-it-works cards must be revealed on scroll");
   assert.ok(page.includes("PRIORITY_STYLES"), "priority labels must reuse the shared mapping");
-  assert.ok(page.includes('aria-label="Masal AI — home"'), "branding must sit in the header at the top");
-  assert.ok(!page.includes('aria-label="Masal AI"'), "the duplicated bottom wordmark must be gone");
+  assert.ok(page.includes("Wordmark"), "the masal.ai brand mark must anchor the page");
+  assert.ok(page.includes('aria-label="Masal AI — home"'), "the header must carry the brand");
   assert.ok(page.includes("/privacy") && page.includes("/terms"), "footer legal links must be present");
   assert.ok(!page.includes("next/image") && !page.includes("<img"), "the summary must use real components, not a fake screenshot");
+});
+
+// The hero visualization must explain the real workflow, not show a generic
+// marketing card or invented numbers.
+test("the hero explains the real workflow", () => {
+  const page = read("../app/page.tsx");
+  for (const label of ["Buyer requirements", "Evidence-based sales priority", "Next best action"]) {
+    assert.ok(page.includes(label), `the hero flow must show: ${label}`);
+  }
 });
 
 test("the landing page shows no customer data or invented testimonials", () => {
