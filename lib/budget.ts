@@ -47,45 +47,33 @@ export function readBudget(raw: string): BudgetReading {
     .replace(/(\d)\s*(crores?|cr|lakhs?|lacs?|thousands?|k)\b/gi, "$1 $2")
     .trim();
 
-  // An explicit range is the only supported multi-number form. The unit may
-  // follow the upper bound ("1.2-1.5 Cr") or both bounds ("1.2 Cr-1.5 Cr").
-  const range = new RegExp("^\\s*" + NUMBER + "\\s*(?:" + UNIT + "\\s*)?-\\s*" + NUMBER + "\\s*" + UNIT + "\\s*$", "i").exec(normalized)
-    ?? new RegExp("^\\s*" + NUMBER + "\\s*-\\s*" + NUMBER + "\\s*" + UNIT + "\\s*$", "i").exec(normalized);
-  if (range) {
-    const low = parseNumber(range[1]);
-    const high = parseNumber(range[3] ?? range[2]);
-    // Capture positions differ between the two regex alternatives; resolve
-    // range forms explicitly below for predictable number/unit association.
-    const simpleRange = new RegExp("^\\s*" + NUMBER + "\\s*-\\s*" + NUMBER + "\\s*" + UNIT + "\\s*$", "i").exec(normalized);
-    const repeatedUnitRange = new RegExp("^\\s*" + NUMBER + "\\s*" + UNIT + "\\s*-\\s*" + NUMBER + "\\s*" + UNIT + "\\s*$", "i").exec(normalized);
-    if (simpleRange) {
-      const lower = parseNumber(simpleRange[1]);
-      const upper = parseNumber(simpleRange[2]);
-      const factor = factorFor(simpleRange[3]);
-      if (lower === undefined || upper === undefined || lower > upper) return invalid("Enter a valid increasing budget range.");
-      return { kind: "quantified", amount: lower * factor };
-    }
-    if (repeatedUnitRange) {
-      const lower = parseNumber(repeatedUnitRange[1]);
-      const upper = parseNumber(repeatedUnitRange[3]);
-      const lowerFactor = factorFor(repeatedUnitRange[2]);
-      const upperFactor = factorFor(repeatedUnitRange[4]);
-      if (lower === undefined || upper === undefined || lower * lowerFactor > upper * upperFactor) return invalid("Enter a valid increasing budget range.");
-      if (lowerFactor !== upperFactor) return invalid("Use the same unit on both ends of a budget range.");
-      return { kind: "quantified", amount: lower * lowerFactor };
-    }
-    // The optional-first-unit alternative is deliberately rejected if the unit
-    // placement cannot be associated unambiguously with both endpoints.
-    if (low === undefined || high === undefined) return invalid();
+  const number = "\\d[\\d,]*(?:\\.\\d+)?";
+  const unit = "(crores?|cr|lakhs?|lacs?|thousands?|k)";
+  const repeatedUnitRange = new RegExp("^\\s*(" + number + ")\\s*(" + unit + ")\\s*-\\s*(" + number + ")\\s*(" + unit + ")\\s*$", "i").exec(normalized);
+  if (repeatedUnitRange) {
+    const low = parseNumber(repeatedUnitRange[1]);
+    const high = parseNumber(repeatedUnitRange[3]);
+    const lowFactor = factorFor(repeatedUnitRange[2]);
+    const highFactor = factorFor(repeatedUnitRange[4]);
+    if (low === undefined || high === undefined || lowFactor !== highFactor || low > high) return invalid("Enter a valid increasing budget range using the same unit on both ends.");
+    return { kind: "quantified", amount: low * lowFactor };
   }
 
-  const tokens = [...normalized.matchAll(new RegExp(NUMBER, "g"))];
+  const simpleRange = new RegExp("^\\s*(" + number + ")\\s*-\\s*(" + number + ")\\s*(" + unit + ")\\s*$", "i").exec(normalized);
+  if (simpleRange) {
+    const low = parseNumber(simpleRange[1]);
+    const high = parseNumber(simpleRange[2]);
+    if (low === undefined || high === undefined || low > high) return invalid("Enter a valid increasing budget range.");
+    return { kind: "quantified", amount: low * factorFor(simpleRange[3]) };
+  }
+
+  const tokens = [...normalized.matchAll(new RegExp(number, "g"))];
   if (tokens.length > 1) return invalid("Multiple amounts are ambiguous. Enter one amount or a clear range, such as 1.2–1.5 Cr.");
   if (tokens.length === 0) {
     return UNIT_RE.test(normalized) ? invalid("Add an amount before the unit (for example, 50 lakhs).") : { kind: "described" };
   }
 
-  const match = new RegExp("^\\s*(?:around|about|approx(?:imately)?|budget(?: is)?|up to|under|below|above|over)?\\s*" + NUMBER + "\\s*(" + UNIT + ")?\\s*$", "i").exec(normalized);
+  const match = new RegExp("^\\s*(?:around|about|approx(?:imately)?|budget(?: is)?|up to|under|below|above|over)?\\s*(" + number + ")\\s*(" + unit + ")?\\s*$", "i").exec(normalized);
   if (!match) return invalid();
   const value = parseNumber(match[1]);
   if (value === undefined) return invalid("Enter a budget amount greater than zero using valid digits and commas.");
