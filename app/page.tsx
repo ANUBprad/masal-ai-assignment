@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Home } from "lucide-react";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { DASHBOARD_PATH, HERO, WORKFLOW_ANCHOR, WORKFLOW_STEPS } from "@/lib/landing";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // The root route is the marketing entry point. It is a static server component:
 // no client state, so next prerenders it and it never touches lead data.
@@ -33,9 +34,12 @@ export default function LandingPage() {
             <Home size={18} className="shrink-0 text-[var(--brand)]" aria-hidden="true" />
             <span className="truncate text-sm font-bold tracking-tight">masal<span className="text-[var(--text-soft)]">.ai</span></span>
           </Link>
-          <Link href={DASHBOARD_PATH} className={primaryButton}>
-            Open Dashboard
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link href={DASHBOARD_PATH} className={primaryButton}>
+              Open Dashboard
+            </Link>
+          </div>
         </div>
       </header>
 

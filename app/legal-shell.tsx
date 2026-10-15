@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Home } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // Shared, dependency-free shell for the static legal pages (Privacy, Terms).
 // A server component: no client state, so these routes stay static.
@@ -12,11 +13,14 @@ export function LegalShell({ title, updated, children }: { title: string; update
             <Home size={18} className="shrink-0 text-[var(--brand)]" aria-hidden="true" />
             <span className="truncate text-sm font-bold tracking-tight">masal<span className="text-[var(--text-soft)]">.ai</span></span>
           </Link>
-          <nav className="flex shrink-0 items-center gap-0.5 text-sm" aria-label="Legal">
-            <Link href="/privacy" className="rounded-md px-2.5 py-1.5 font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Privacy</Link>
-            <Link href="/terms" className="rounded-md px-2.5 py-1.5 font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Terms</Link>
-            <Link href="/dashboard" className="rounded-md px-2.5 py-1.5 font-semibold text-[var(--brand-text)] transition hover:bg-[var(--hover)]">Back to app</Link>
-          </nav>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <ThemeToggle className="h-8 w-8" />
+            <nav className="flex items-center gap-0.5 text-sm" aria-label="Legal">
+              <Link href="/privacy" className="rounded-md px-2.5 py-1.5 font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Privacy</Link>
+              <Link href="/terms" className="rounded-md px-2.5 py-1.5 font-medium text-[var(--text-muted)] transition hover:bg-[var(--hover)] hover:text-[var(--text)]">Terms</Link>
+              <Link href="/dashboard" className="rounded-md px-2.5 py-1.5 font-semibold text-[var(--brand-text)] transition hover:bg-[var(--hover)]">Back to app</Link>
+            </nav>
+          </div>
         </div>
       </header>
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6" id="main-content">

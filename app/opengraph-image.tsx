@@ -35,7 +35,7 @@ export default function OpengraphImage() {
             }}
           >
             <svg width="40" height="40" viewBox="0 0 32 32">
-              <path d="M16 8.2 7.6 15.1V24h5.7v-5.1h5.4V24h5.7v-8.9z" fill="#d7f36a" />
+              <path d="M16 8.2 7.6 15.1V24h5.7v-5.1h5.4V24h5.7v-8.9z" fill="#8fbf9f" />
             </svg>
           </div>
           <div style={{ fontSize: "34px", fontWeight: 700, letterSpacing: "-0.02em" }}>masal.ai</div>

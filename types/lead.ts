@@ -83,6 +83,7 @@ export interface Lead extends LeadInput {
   chat: ChatMessage[];
   callBrief?: CallBrief;
   demo?: boolean;
+  sample?: boolean;
 }
 
 export interface ChatMessage {

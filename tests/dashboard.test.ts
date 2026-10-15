@@ -51,7 +51,8 @@ test("the Content-Security-Policy header is applied to every route", async () =>
 
 test("both Add Lead actions open the same intake form", () => {
   const source = dashboardSource();
-  assert.ok((source.match(/setShowForm\(true\)/g) ?? []).length >= 2, "the header and empty-state buttons must both open the form");
+  assert.ok(source.includes("function openForm() { setShowForm(true); setSidebarOpen(false); }"), "a single opener must set the form open");
+  assert.ok((source.match(/onClick=\{openForm\}/g) ?? []).length >= 2, "the sidebar and the empty state must both open the form");
   assert.ok(source.includes("{showForm &&"), "the form must render only while open");
 });
 
@@ -94,4 +95,33 @@ test("a value the form accepts survives the persisted-store round trip", () => {
   assert.equal(reloaded.length, 1);
   assert.equal(reloaded[0].name, "Meera Nair");
   assert.equal(reloaded[0].timeline, "Within 30 days");
+});
+
+// --- Data integrity: empty by default, no auto-selection, samples explicit ---
+
+test("the workspace does not auto-select a lead on load", () => {
+  const source = dashboardSource();
+  assert.ok(!source.includes("setSelectedId(saved[0].id)"), "a fresh load must not auto-select a lead");
+  assert.ok(source.includes("if (saved.length) setLeads(saved);"), "an empty store must leave the workspace empty");
+});
+
+test("deleting the selected lead clears the selection instead of jumping to another", () => {
+  const source = dashboardSource();
+  assert.ok(source.includes("if (selectedId === id) setSelectedId(null)"), "deleting must clear the selection");
+  assert.ok(!source.includes("setSelectedId(remaining[0]"), "deleting must not fall through to another customer");
+});
+
+test("the workspace is a sidebar layout with the theme toggle", () => {
+  const source = dashboardSource();
+  assert.ok(source.includes('id="leads-sidebar"'), "the leads list must live in a sidebar");
+  assert.ok(source.includes("ThemeToggle"), "the sidebar must offer the theme toggle");
+  assert.ok(source.includes("Overview"), "the first detail tab must be renamed Overview");
+});
+
+test("optional sample data is only produced by the explicit action", () => {
+  const source = dashboardSource();
+  assert.equal((source.match(/buildSampleLeads\(/g) ?? []).length, 1, "exactly one call site for the sample builder");
+  assert.ok(source.includes("function loadSamples()"), "samples load through a named action");
+  assert.ok(source.includes("removeSampleLeads"), "samples must be removable");
+  assert.ok(source.includes("isSampleLead(lead)"), "sample rows must be identifiable in the list");
 });

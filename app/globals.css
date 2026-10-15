@@ -2,16 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Single visual system: pure black foundation, one restrained brand accent
-   (the favicon lime). No light/dark duality — the product is always black. */
+/* Two theme token sets share one visual system: restrained, flat surfaces, one
+   muted-green accent, no gradients or glow. Dark is the default (`:root`); the
+   light set is applied by `[data-theme="light"]`, which the pre-paint script in
+   app/layout.tsx sets from the stored preference or the OS setting. */
 :root {
   color-scheme: dark;
   --bg: #000000;
   --surface: #0a0a0a;
   --surface-2: #111111;
-  --surface-muted: #0a0a0a;
   --surface-inset: #111111;
-  --accent-soft: rgba(215, 243, 106, .08);
+  --accent-soft: rgba(143, 191, 159, .12);
   --hover: #141414;
   --text: #f5f5f5;
   --text-soft: #a3a3a3;
@@ -21,33 +22,48 @@
   --border-soft: #1a1a1a;
   --border-input: #262626;
   --border-strong: #404040;
-  --brand: #d7f36a;
-  --brand-strong: #c4e058;
-  --brand-text: #d7f36a;
-  --on-brand: #050505;
-  --on-accent: #050505;
-  --ink-solid: #111111;
+  --brand: #8fbf9f;
+  --brand-strong: #a6cdb4;
+  --brand-text: #8fbf9f;
+  --on-brand: #06110b;
+  --ink-solid: #262626;
   --on-ink: #f5f5f5;
-  --on-lime: #050505;
-  --lime: #d7f36a;
-  --positive: #a3a3a3;
-  --positive-strong: #d7f36a;
-  --hot-fg: #f5f5f5;
-  --hot-bg: #1a1a1a;
-  --hot-bar: #d7f36a;
-  --warm-fg: #a3a3a3;
-  --warm-bg: #161616;
-  --warm-bar: #737373;
-  --cold-fg: #737373;
-  --cold-bg: #111111;
-  --cold-bar: #404040;
   --danger-fg: #f87171;
   --danger-bg: rgba(248, 113, 113, .10);
   --overlay-bg: rgba(0, 0, 0, .72);
-  --header-bg: #000000;
-  --focus-ring: rgba(215, 243, 106, .18);
+  --focus-ring: rgba(143, 191, 159, .30);
   --shadow-panel: none;
   --shadow-pop: 0 16px 40px -16px rgba(0, 0, 0, .85), 0 2px 10px rgba(0, 0, 0, .5);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f3ee;
+  --surface: #fafaf6;
+  --surface-2: #eaeae3;
+  --surface-inset: #eaeae3;
+  --accent-soft: rgba(53, 107, 75, .10);
+  --hover: #ecece5;
+  --text: #252822;
+  --text-soft: #62665e;
+  --text-muted: #7a7e75;
+  --text-faint: #8a8e85;
+  --border: #d8d8d0;
+  --border-soft: #e3e3dc;
+  --border-input: #d8d8d0;
+  --border-strong: #b9b9af;
+  --brand: #356b4b;
+  --brand-strong: #2c5a3e;
+  --brand-text: #356b4b;
+  --on-brand: #fafaf6;
+  --ink-solid: #252822;
+  --on-ink: #fafaf6;
+  --danger-fg: #b42318;
+  --danger-bg: rgba(180, 35, 24, .08);
+  --overlay-bg: rgba(37, 40, 34, .45);
+  --focus-ring: rgba(53, 107, 75, .28);
+  --shadow-panel: none;
+  --shadow-pop: 0 18px 44px -22px rgba(37, 40, 34, .35), 0 2px 10px rgba(37, 40, 34, .10);
 }
 
 @layer base {

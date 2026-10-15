@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, Manrope } from "next/font/google";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { DEFAULT_THEME, THEME_ATTRIBUTE, THEME_STORAGE_KEY } from "@/lib/theme";
 import "./globals.css";
 
 // Self-hosted at build time: no render-blocking third-party CSS request and no
@@ -28,12 +29,25 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true }
 };
 
-// The product is always black; this only tints the mobile browser chrome.
-export const viewport: Viewport = { themeColor: "#000000" };
+// Tints the mobile browser chrome to match whichever theme is active.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { media: "(prefers-color-scheme: light)", color: "#f3f3ee" }
+  ]
+};
+
+// Runs before first paint so the correct theme is applied with no flash. The
+// storage key and attribute must match lib/theme.ts and the client toggle; the
+// inline script is allowed by the CSP's script-src 'unsafe-inline'.
+const themeScript = `(function(){try{var k=${JSON.stringify(THEME_STORAGE_KEY)};var s=localStorage.getItem(k);var t=(s==="light"||s==="dark")?s:(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)},t);}catch(e){document.documentElement.setAttribute(${JSON.stringify(THEME_ATTRIBUTE)},${JSON.stringify(DEFAULT_THEME)});}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${manrope.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${dmSans.variable} ${manrope.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );
